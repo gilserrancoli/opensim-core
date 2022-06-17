@@ -1252,10 +1252,11 @@ int F_generic(const T** arg, T** res) {
     Vec3 knee_trans = Vec3(model->getStateVariableValue(*state, "knee_r/knee_tx_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_ty_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_tz_r/value"));
-    Vec3 knee_rot = Vec3(model->getStateVariableValue(*state, "knee_r/knee_angle_r/value"),
+    Vec3 knee_rot_0 = Vec3(model->getStateVariableValue(*state, "knee_r/knee_angle_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_adduction_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_rotation_r/value"));
-  
+    Vec3 knee_rot = Vec3(-knee_rot_0[0], -knee_rot_0[1], knee_rot_0[2]); // change sign to be consistent with joint definition (reverse in .osim)
+
     // Compute Resulting contact wrench at the center of the tibia
     Vec3 KneeCont_SumForces;
     Vec3 KneeCont_SumMoments;
