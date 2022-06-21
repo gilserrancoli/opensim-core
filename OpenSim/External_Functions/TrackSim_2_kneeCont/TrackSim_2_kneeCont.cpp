@@ -100,6 +100,7 @@ std::vector<std::vector<int>> ReadDataIntx3columns(std::string filename, int nro
 
             std::istringstream iss(line);
 
+            std::cout << line << std::endl;
 
             std::string delimiter = ",";
             std::string token = line.substr(0, line.find(","));
@@ -147,10 +148,11 @@ std::vector<std::vector<int>> ReadDataIntx2columns(std::string filename, int nro
 
             std::istringstream iss(line);
 
-
+            std::cout << line << std::endl;
             std::string delimiter = ",";
             std::string token = line.substr(0, line.find(","));
 
+            
             size_t pos0 = 0;
             pos0 = line.find(",");
             std::string token1 = line.substr(0, pos0);
@@ -189,7 +191,6 @@ Vector_<Vec3> ReadDataDoublex3columns(std::string filename, int nrows_in) {
             std::getline(file, line);
 
             std::istringstream iss(line);
-
 
             std::string delimiter = ",";
             std::string token = line.substr(0, line.find(","));
@@ -765,6 +766,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
     
 
     for (int i = 0; i < pairs_list.size(); i++) {
+        std::cout << pairs_list[i][1] - 1 << std::endl;
         std::vector<int> facesFem_ind = facesFem[pairs_list[i][1]-1];
         Vector_<Vec3> fem_Points_ind(3);
         for (int j = 0; j < 3; j++) {
@@ -848,23 +850,23 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
 
 void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, Vec3 &SumMoments, Real &SumForces_vert_Lat, Real &SumForces_vert_Med) {
     // Read Geometry Information
-    std::string filename_tibPoints("D:/Gil/MeshesInAD/contactsKneeProsthesis/tibPoints.csv");
+    std::string filename_tibPoints("C:/Gil/MeshesInAD/contactsKneeProsthesis/tibPoints.csv");
     Vector_<Vec3> tibPoints = ReadDataDoublex3columns(filename_tibPoints, 36);
-    std::string filename_femPoints("D:/Gil/MeshesInAD/contactsKneeProsthesis/femPoints.csv");
+    std::string filename_femPoints("C:/Gil/MeshesInAD/contactsKneeProsthesis/femPoints.csv");
     Vector_<Vec3> femPoints = ReadDataDoublex3columns(filename_femPoints, 117);
-    //std::string filename_tibconList1("D:/Gil/MeshesInAD/contactsKneeProsthesis/tib1_connectivityList.csv");
+    //std::string filename_tibconList1("C:/Gil/MeshesInAD/contactsKneeProsthesis/tib1_connectivityList.csv");
     //std::vector<std::vector<int>> tibConList1 = ReadDataIntx3columns(filename_tibconList1, 26);
-    //std::string filename_tibconList2("D:/Gil/MeshesInAD/contactsKneeProsthesis/tib2_connectivityList.csv");
+    //std::string filename_tibconList2("C:/Gil/MeshesInAD/contactsKneeProsthesis/tib2_connectivityList.csv");
     //std::vector<std::vector<int>> tibConList2 = ReadDataIntx3columns(filename_tibconList2, 23);
-    std::string filename_pairs1("D:/Gil/MeshesInAD/contactsKneeProsthesis/pairs1.csv");
+    std::string filename_pairs1("C:/Gil/MeshesInAD/contactsKneeProsthesis/pairs1.csv");
     std::vector<std::vector<int>> pairs1_list = ReadDataIntx2columns(filename_pairs1, 293);
-    std::string filename_pairs2("D:/Gil/MeshesInAD/contactsKneeProsthesis/pairs2.csv");
+    std::string filename_pairs2("C:/Gil/MeshesInAD/contactsKneeProsthesis/pairs2.csv");
     std::vector<std::vector<int>> pairs2_list = ReadDataIntx2columns(filename_pairs2, 195);
-    std::string filename_facesFem("D:/Gil/MeshesInAD/contactsKneeProsthesis/facesFem.csv");
+    std::string filename_facesFem("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesFem.csv");
     std::vector<std::vector<int>> facesFem = ReadDataIntx3columns(filename_facesFem, 185);
-    std::string filename_facesTib1("D:/Gil/MeshesInAD/contactsKneeProsthesis/facesTib1.csv");
+    std::string filename_facesTib1("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesTib1.csv");
     std::vector<std::vector<int>> facesTib1 = ReadDataIntx3columns(filename_facesTib1, 26);
-    std::string filename_facesTib2("D:/Gil/MeshesInAD/contactsKneeProsthesis/facesTib2.csv");
+    std::string filename_facesTib2("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesTib2.csv");
     std::vector<std::vector<int>> facesTib2 = ReadDataIntx3columns(filename_facesTib2, 23);
 
     // Sum shift translation to the femur
@@ -1255,7 +1257,9 @@ int F_generic(const T** arg, T** res) {
     Vec3 knee_rot_0 = Vec3(model->getStateVariableValue(*state, "knee_r/knee_angle_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_adduction_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_rotation_r/value"));
-    Vec3 knee_rot = Vec3(-knee_rot_0[0], -knee_rot_0[1], knee_rot_0[2]); // change sign to be consistent with joint definition (reverse in .osim)
+    
+    Vec3 knee_rot(0);
+    knee_rot = Vec3(-knee_rot_0[0], -knee_rot_0[1], knee_rot_0[2]); // change sign to be consistent with joint definition (reverse in .osim)
 
     // Compute Resulting contact wrench at the center of the tibia
     Vec3 KneeCont_SumForces;
