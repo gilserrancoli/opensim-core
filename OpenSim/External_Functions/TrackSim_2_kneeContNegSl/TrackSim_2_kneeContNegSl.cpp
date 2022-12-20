@@ -726,22 +726,22 @@ void CalculateIntersection(Vector_<Vec3> fem_Points, Vector_<Vec3> tib_Points, V
 void CalculateMinimumDistance(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &mindist, Vec3 &nt_l) {
     Vector_<Real> proj(d_v.size());
     //Vector_<Vec3> dist_v(d_v.size());
-    Vector_<Real> dist(d_v.size());
+    Vector_<Real> pen(d_v.size());
 
     for (int i = 0; i < d_v.size(); i++) {
         proj[i] = dot(d_v[i], nt_v[i]);
         //dist_v[i] = -proj[i] * nt_v[i];
-        dist[i] = -proj[i];
+        pen[i] = -proj[i];
     }
-    Real k = 10000;
+    Real k = 1000;
 
-    mindist = -(log(sum(exp(k*dist))) / k);
+    mindist = (log(sum(exp(k*pen))) / k);
     nt_l = nt_v[0];
 }
 
 Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
     Real k = 1e4;
-    Real pen = -d;
+    Real pen = d;
 
     Real p_init = ((1 - poisson)*E / ((1 + poisson)*(1 - 2 * poisson)))*pen / h;
     
@@ -790,7 +790,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
         Vec3 d_aux, ns_aux, Cfem, Ctib_aux, nt_aux;
         Real As, At;
         
-        CalculateIntersection(fem_Points_ind, tib_Points_ind, d_aux, As, At, ns_aux, Cfem, Ctib_aux, nt_aux);
+        CalculateIntersection(fem_Points_ind, tib_Points_ind, d_aux, As, At, ns_aux, Cfem, Ctib_aux, nt_aux); // first element in pairs is tibia, second femur
         d[i] = d_aux;
         nt[i] = nt_aux;
         
@@ -800,7 +800,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
         std::cout << "d= " << d << std::endl;
         std::cout << "pairs_list" << pairs_list[i][0] - 1 << " " << pairs_list[i][1] - 1 << std::endl;*/
         if (i > 0) {
-            if (pairs_list[i][0] == pairs_list[i - 1][0]) {
+            if ((pairs_list[i][0] == pairs_list[i - 1][0]) && (i < pairs_list.size())) {
                 l = l + 1;
             }
             else {
