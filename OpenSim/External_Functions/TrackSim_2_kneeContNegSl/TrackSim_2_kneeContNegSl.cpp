@@ -829,6 +829,10 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
 
                 k = k + 1;
                 l = 2;
+                while (k < pairs_list[i][0]) {
+                    k = k + 1;
+                }
+                
                 ///////////////
 
             }

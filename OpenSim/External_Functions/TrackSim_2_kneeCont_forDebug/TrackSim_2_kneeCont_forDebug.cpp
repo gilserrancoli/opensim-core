@@ -49,7 +49,7 @@ constexpr int ndofr = 36;       // # degrees of freedom (including locked)
 constexpr int NX = ndof*2;      // # states
 constexpr int NU = ndof;        // # controls
 constexpr int NP = 54;          // # parameters
-constexpr int NR = ndof+6+6+2;    // # residual torques + # GRFs + # GRMs
+constexpr int NR = ndof+6+6+2+49;    // # residual torques + # GRFs + # GRMs + # KCF + # knee pressures
 
 // Helper function value
 template<typename T>
@@ -747,7 +747,7 @@ Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
     return p;
 }
 
-void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3 &SumForces, Vec3 &SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vec3 knee_trans, Vec3 knee_rot) {
+void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3 &SumForces, Vec3 &SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vec3 knee_trans, Vec3 knee_rot, Vector &p_vec) {
     Vector_<Vec3> d(pairs_list.size());
     Vector_<Vec3> nt(pairs_list.size());
     Vector_<Vec3> force_s_l(0);
@@ -755,7 +755,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
     Vector_<Real> face_s(0);
     Vector_<Vec3> mom_O(0);
 
-    int k = 1; //number of contacting elements in femur
+    int k = 1; //number of contacting elements in femur /in tibia?
     int l = 1; //count number of elements contacting element k of femur
     
     //std::cout << "facesFem.size()" << facesFem.size() << std::endl;
@@ -790,7 +790,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
         std::cout << "d= " << d << std::endl;
         std::cout << "pairs_list" << pairs_list[i][0] - 1 << " " << pairs_list[i][1] - 1 << std::endl;*/
         if (i > 0) {
-            if ((pairs_list[i][0] == pairs_list[i - 1][0])&&(i<pairs_list.size())) {
+            if ((pairs_list[i][0] == pairs_list[i - 1][0])&&(i<pairs_list.size()-1)) {
                 l = l + 1;
             }
             else {
@@ -807,6 +807,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
 
 
                 Real p = CalculatePressure(poisson, E, mindist, h);
+                p_vec[k - 1] = p;
 
                 force_s_l.resizeKeep(k);
                 force_s_l[k - 1] = p*At*nt_l;
@@ -820,6 +821,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
                 k = k + 1;
                 l = 2;
                 while (k < pairs_list[i][0]) {
+                    p_vec[k - 1] = Real(0.0);
                     k = k + 1;
                 }
                 ///////////////
@@ -832,6 +834,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
 
     }
     
+    std::cout << "p_vec= " << p_vec << std::endl;
     Vec3 Sum_Force_G;
     Vec3 Sum_Moments_G;
     Sum_Force_G.setToZero();
@@ -850,7 +853,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
 
 }
 
-void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, Vec3 &SumMoments, Real &SumForces_vert_Lat, Real &SumForces_vert_Med) {
+void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, Vec3 &SumMoments, Real &SumForces_vert_Lat, Real &SumForces_vert_Med, Vector &pvec1, Vector &pvec2) {
     // Read Geometry Information
     std::string filename_tibPoints("C:/Gil/MeshesInAD/contactsKneeProsthesis/tibPoints.csv");
     Vector_<Vec3> tibPoints = ReadDataDoublex3columns(filename_tibPoints, 36);
@@ -910,9 +913,12 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     SumForces2.setToZero();
     SumMoments2.setToZero();
 
-    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib1, pairs1_list, SumForces1, SumMoments1, poisson, E, h, originTib_G, knee_trans, knee_rot);
+    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib1, pairs1_list, SumForces1, SumMoments1, poisson, E, h, originTib_G, knee_trans, knee_rot,pvec1);
+    std::cout << "pvec1= " << pvec1 << std::endl;
     std::cout << "forces=" << SumForces1 << " moments=" << SumMoments1 << std::endl;
-    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib2, pairs2_list, SumForces2, SumMoments2, poisson, E, h, originTib_G, knee_trans, knee_rot);
+    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib2, pairs2_list, SumForces2, SumMoments2, poisson, E, h, originTib_G, knee_trans, knee_rot,pvec2);
+    std::cout << "pvec2= " << pvec2 << std::endl;
+    
     SumForces = SumForces1 + SumForces2;
     SumMoments = SumMoments1 + SumMoments2;
     SumForces_vert_Lat = SumForces1[1];
@@ -1271,7 +1277,14 @@ int F_generic(const T** arg, T** res) {
     Real SumForces_vert_Lat;
     Real SumForces_vert_Med;
     
-    ComputeKneeContactForces(knee_trans, knee_rot, KneeCont_SumForces, KneeCont_SumMoments, SumForces_vert_Lat, SumForces_vert_Med);
+    Vector pvec1(26);
+    pvec1.setToZero();
+    Vector pvec2(23);
+    pvec2.setToZero();
+    ComputeKneeContactForces(knee_trans, knee_rot, KneeCont_SumForces, KneeCont_SumMoments, SumForces_vert_Lat, SumForces_vert_Med, pvec1, pvec2);
+    std::cout << "pvec1= " << pvec1 << std::endl;
+    std::cout << "pvec2= " << pvec2 << std::endl;
+
     Vec3 KneeCont_SumForces_onTibialTray_inTibialTrayFrame = -KneeCont_SumForces;
     Vec3 KneeCont_SumMoments_onTibialTray_inTibialTrayFrame = -KneeCont_SumMoments;
 
@@ -1524,6 +1537,7 @@ int F_generic(const T** arg, T** res) {
     res[0][31] = value<T>(residualMobilityForces[21]);
     res[0][32] = value<T>(residualMobilityForces[29]);
     res[0][33] = value<T>(residualMobilityForces[30]);
+    std::cout << "residualMobilityForces= " << residualMobilityForces << std::endl;
 
     /// Contact forces
     for (int i = 0; i < nc; ++i) {
@@ -1543,6 +1557,14 @@ int F_generic(const T** arg, T** res) {
     /// Knee contact forces
     res[0][ndof + nc + nc + nc + nc] = value<T>(SumForces_vert_Lat);
     res[0][ndof + nc + nc + nc + nc + 1] = value<T>(SumForces_vert_Med);
+
+    /// Knee pressures
+    for (int i = 0; i < 26; ++i) {
+        res[0][i + ndof + nc + nc + nc + nc + 1] = value<T>(pvec1[i]);
+    }
+    for (int i = 0; i < 23; ++i) {
+        res[0][i + ndof + nc + nc + nc + nc + 1 + 23] = value<T>(pvec2[i]);
+    }
     return 0;
 }
 
@@ -1570,7 +1592,10 @@ int main() {
     F_generic<Recorder>(Recorder_arg, Recorder_res);
 
     double res[NR];
-    for (int i = 0; i < NR; ++i) Recorder_res[0][i] >>= res[i];
+    for (int i = 0; i < NR; ++i) {
+        std::cout << "i=" << i << std::endl;
+        Recorder_res[0][i] >>= res[i];
+    }
 
     Recorder::stop_recording();
 
