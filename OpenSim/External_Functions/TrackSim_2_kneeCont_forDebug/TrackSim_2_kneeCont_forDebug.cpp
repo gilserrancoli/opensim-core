@@ -821,7 +821,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
                 k = k + 1;
                 l = 2;
                 while (k < pairs_list[i][0]) {
-                    p_vec[k - 1] = Real(0.0);
+                    p_vec[k - 1] = p*0.0;
                     k = k + 1;
                 }
                 ///////////////
@@ -1560,10 +1560,10 @@ int F_generic(const T** arg, T** res) {
 
     /// Knee pressures
     for (int i = 0; i < 26; ++i) {
-        res[0][i + ndof + nc + nc + nc + nc + 1] = value<T>(pvec1[i]);
+        res[0][i + ndof + nc + nc + nc + nc + 2] = value<T>(pvec1[i]);
     }
     for (int i = 0; i < 23; ++i) {
-        res[0][i + ndof + nc + nc + nc + nc + 1 + 23] = value<T>(pvec2[i]);
+        res[0][i + ndof + nc + nc + nc + nc + 2 + 26] = value<T>(pvec2[i]);
     }
     return 0;
 }
@@ -1594,6 +1594,7 @@ int main() {
     double res[NR];
     for (int i = 0; i < NR; ++i) {
         std::cout << "i=" << i << std::endl;
+        std::cout << "res[i]=" << res[i] << std::endl;
         Recorder_res[0][i] >>= res[i];
     }
 

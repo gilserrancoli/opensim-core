@@ -790,7 +790,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
         std::cout << "d= " << d << std::endl;
         std::cout << "pairs_list" << pairs_list[i][0] - 1 << " " << pairs_list[i][1] - 1 << std::endl;*/
         if (i > 0) {
-            if ((pairs_list[i][0] == pairs_list[i - 1][0])&&(i<pairs_list.size())) {
+            if ((pairs_list[i][0] == pairs_list[i - 1][0])&&(i<pairs_list.size()-1)) {
                 l = l + 1;
             }
             else {
