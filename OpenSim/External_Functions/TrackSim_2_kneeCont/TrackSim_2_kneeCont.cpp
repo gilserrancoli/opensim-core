@@ -721,7 +721,7 @@ void CalculateIntersection(Vector_<Vec3> fem_Points, Vector_<Vec3> tib_Points, V
 
 }
 
-void CalculateMinimumDistance(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &mindist, Vec3 &nt_l) {
+void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &mindist, Vec3 &nt_l) {
     Vector_<Real> proj(d_v.size());
     //Vector_<Vec3> dist_v(d_v.size());
     Vector_<Real> pen(d_v.size());
@@ -730,7 +730,7 @@ void CalculateMinimumDistance(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &mindi
         proj[i] = dot(d_v[i], nt_v[i]); // projection of distance between tibial and femoral faces to the normal of tibial face
         pen[i] = -proj[i]; // pen is for penetration
     }
-    Real k = 1000;
+    Real k = 1e4;
 
     mindist = (log(sum(exp(k*pen))) / k);
     nt_l = nt_v[0];
@@ -802,7 +802,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
                     d_aux_list[j] = d[i - l + j + 1];
                     nt_aux_list[j] = nt[i - l + j + 1];
                 }
-                CalculateMinimumDistance(d_aux_list, nt_aux_list,mindist,nt_l);
+                CalculateMaximumPenetration(d_aux_list, nt_aux_list,mindist,nt_l);
                 
 
 

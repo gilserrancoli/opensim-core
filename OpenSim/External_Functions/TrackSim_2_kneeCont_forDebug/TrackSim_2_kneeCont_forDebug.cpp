@@ -721,7 +721,7 @@ void CalculateIntersection(Vector_<Vec3> fem_Points, Vector_<Vec3> tib_Points, V
 
 }
 
-void CalculateMinimumDistance(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &mindist, Vec3 &nt_l) {
+void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &mindist, Vec3 &nt_l) {
     Vector_<Real> proj(d_v.size());
     //Vector_<Vec3> dist_v(d_v.size());
     Vector_<Real> pen(d_v.size());
@@ -730,7 +730,7 @@ void CalculateMinimumDistance(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &mindi
         proj[i] = dot(d_v[i], nt_v[i]); // projection of distance between tibial and femoral faces to the normal of tibial face
         pen[i] = -proj[i]; // pen is for penetration
     }
-    Real k = 1000;
+    Real k = 1e4;
 
     mindist = (log(sum(exp(k*pen))) / k);
     nt_l = nt_v[0];
@@ -802,7 +802,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
                     d_aux_list[j] = d[i - l + j + 1];
                     nt_aux_list[j] = nt[i - l + j + 1];
                 }
-                CalculateMinimumDistance(d_aux_list, nt_aux_list,mindist,nt_l);
+                CalculateMaximumPenetration(d_aux_list, nt_aux_list,mindist,nt_l);
                 
 
 
@@ -1266,6 +1266,12 @@ int F_generic(const T** arg, T** res) {
         model->getStateVariableValue(*state, "knee_r/knee_adduction_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_rotation_r/value"));
     
+    //model->setStateVariableValue(*state, "knee_r/knee_tx_r/value", 0.009462599065706);
+    //std::cout << "knee_tx= " << model->getStateVariableValue(*state, "knee_r/knee_tx_r/value") << std::endl;
+    
+   // knee_trans = Vec3(0.009462599065706, 0.044272314106000, 0.000503998234416);
+    //knee_rot_0 = Vec3(-0.009816191057840, 0.034998650485311, -0.005025939018250);
+
     Vec3 knee_rot(0);
     knee_rot = Vec3(-knee_rot_0[0], -knee_rot_0[1], knee_rot_0[2]); // change sign to be consistent with joint definition (reverse in .osim)
 
@@ -1558,6 +1564,7 @@ int F_generic(const T** arg, T** res) {
     res[0][ndof + nc + nc + nc + nc] = value<T>(SumForces_vert_Lat);
     res[0][ndof + nc + nc + nc + nc + 1] = value<T>(SumForces_vert_Med);
 
+    std::cout << "pvec1= " << pvec1 << std::endl;
     /// Knee pressures
     for (int i = 0; i < 26; ++i) {
         res[0][i + ndof + nc + nc + nc + nc + 2] = value<T>(pvec1[i]);
