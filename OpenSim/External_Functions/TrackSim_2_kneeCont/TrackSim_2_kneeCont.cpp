@@ -80,6 +80,58 @@ createSystemYIndexMap(const Model& model) {
     return sysYIndices;
 }
 
+Vector_<Vec4> ReadDataDoublex4columns(std::string filename, int nrows_in) {
+
+
+    std::ifstream  file(filename);
+
+    //
+    double v1, v2, v3, v4;
+    Vector_<Vec4> out_csv(nrows_in);
+
+    int nrows = 0;
+    if (file.is_open()) {
+
+        std::string line;
+
+        while (!file.eof()) {
+
+            std::getline(file, line);
+
+            std::istringstream iss(line);
+
+            std::cout << line << std::endl;
+
+            std::string delimiter = ",";
+            std::string token = line.substr(0, line.find(","));
+
+            size_t pos0 = 0;
+            pos0 = line.find(",");
+            std::string token1 = line.substr(0, pos0);
+            v1 = std::stod(token1);
+            line.erase(0, pos0 + delimiter.length());
+            size_t pos1 = line.find(",");
+            std::string token2 = line.substr(0, pos1);
+            v2 = std::stod(token2);
+            line.erase(0, pos1 + delimiter.length());
+            size_t pos2 = line.find(",");
+            std::string token3 = line.substr(0, pos2);
+            v3 = std::stod(token3);
+            line.erase(0, pos2 + delimiter.length());
+            size_t pos3 = line.find(",");
+            std::string token4 = line.substr(0, pos3);
+            v4 = std::stod(token4);
+
+            out_csv[nrows] = Vec4(v1, v2, v3, v4);
+            nrows = nrows + 1;
+
+        }
+
+        file.close();
+    }
+    return out_csv;
+}
+
 std::vector<std::vector<int>> ReadDataIntx3columns(std::string filename, int nrows_in) {
 
 
@@ -685,6 +737,27 @@ Mat44 ftransf_function(Vec3 knee_trans, Vec3 knee_rot) {
     return R_tib;
 }
 
+Real CheckContact(Real overlap) {
+    Real k = 1e4; // k subject to change
+    Real multiplier = (tanh(k * overlap) + 1.0) / 2.0;
+    /*std::cout << multiplier << std::endl;*/
+    return multiplier;
+}
+
+Vector_<Real> GenerateMultList(std::vector<std::vector<int>> pairs_list, Vector_<Vec3> cont_centers_Fem, Vector_<Vec3> cont_centers_tib_transf, Vector_<Real> conFem_r, Vector_<Real> conTib_r) {
+    Vector_<Real> mlist(pairs_list.size(),0.0);
+    for (int i = 0; i < pairs_list.size(); i++) {
+        Vec3 d = cont_centers_Fem[pairs_list[i][1]-1] - cont_centers_tib_transf[pairs_list[i][0]-1];
+       /* std::cout << "d=" << d << std::endl;
+        std::cout << "operation=" << pow(pow(d[0], 2.0) + pow(d[1], 2.0) + pow(d[2], 2.0) + 1.0e-8, 0.5) << std::endl;*/
+        Real distaux = conFem_r[pairs_list[i][1]-1] + conTib_r[pairs_list[i][0]-1] - pow(pow(d[0], 2.0) + pow(d[1], 2.0) + pow(d[2], 2.0) + 1.0e-8, 0.5);
+        mlist[i] = CheckContact(distaux);
+    }
+    /*std::cout << "mlist" << std::endl; 
+    std::cout << mlist << std::endl;*/
+    return mlist;
+}
+
 void CalculateIntersection(Vector_<Vec3> fem_Points, Vector_<Vec3> tib_Points, Vec3 &d, Real &As, Real &Atib, Vec3 &ns, Vec3 &Cfem, Vec3 &Ctib, Vec3 &nt) {
     // mean point of the tib face
     for (int i = 0; i < 3; i++) {
@@ -721,33 +794,53 @@ void CalculateIntersection(Vector_<Vec3> fem_Points, Vector_<Vec3> tib_Points, V
 
 }
 
-void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &mindist, Vec3 &nt_l) {
+void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &maxpen, Vec3 &nt_l, Vector_<Real> mults) {
     Vector_<Real> proj(d_v.size());
     //Vector_<Vec3> dist_v(d_v.size());
     Vector_<Real> pen(d_v.size());
-
+    /*std::cout << proj.size() << std::endl;
+    std::cout << mults.size() << std::endl;
+    std::cout << mults << std::endl;*/
     for (int i = 0; i < d_v.size(); i++) {
         proj[i] = dot(d_v[i], nt_v[i]); // projection of distance between tibial and femoral faces to the normal of tibial face
-        pen[i] = -proj[i]; // pen is for penetration
+        pen[i] = -proj[i]*mults[i]; // pen is for penetration
+        //pen[i] = -proj[i]; // pen is for penetration
     }
     Real k = 1e4;
+    std::cout << "proj" << proj << std::endl;
+    std::cout << "pen" << pen << std::endl;
+    std::cout << "mults=" << mults << std::endl;
+    std::cout << "sum mults=" << sum(mults) << std::endl;
+    std::cout << "k*pen" << k*pen << std::endl;
+    std::cout << "exp(k*pen))" << exp(k * pen) << std::endl;
 
-    mindist = (log(sum(exp(k*pen))) / k);
+    maxpen = (log(sum(exp(k*pen))+1e-16) / k); //version logSum
+    //maxpen = (log((1.0/pen.size())*sum(exp(k * pen))+1e-16) / k); //version MellowMax
+    //maxpen = max(pen); // version nosmooth
+
+    std::cout << "sum(exp(k * pen))" << sum(exp(k * pen)) << std::endl;
+    std::cout << "maxpen=" << maxpen << std::endl;
+    std::cout << "1.0 / pen.size()" << 1.0/pen.size() << std::endl;
+    std::cout << "true max pen=" << max(pen) << std::endl;
+    //mindist = max(pen);
     nt_l = nt_v[0];
 }
 
 Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
-    Real k = 1e4;
+    Real k = 5e4;
     Real pen = d;
 
     Real p_init = ((1 - poisson)*E / ((1 + poisson)*(1 - 2 * poisson)))*pen / h;
 
     Real p = p_init*(1 + tanh(k*pen)) / 2;
 
+    std::cout << "pen" << pen << std::endl;
+    std::cout << "p" << p << std::endl;
+
     return p;
 }
 
-void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3 &SumForces, Vec3 &SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vec3 knee_trans, Vec3 knee_rot) {
+void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3 &SumForces, Vec3 &SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vector_<Real> multipliers, Vec3 knee_trans, Vec3 knee_rot) {
     Vector_<Vec3> d(pairs_list.size());
     Vector_<Vec3> nt(pairs_list.size());
     Vector_<Vec3> force_s_l(0);
@@ -796,13 +889,15 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
             else {
                 Vector_<Vec3> d_aux_list(l - 1);
                 Vector_<Vec3> nt_aux_list(l - 1);
+                Vector_<Real> multipliers_list(l-1);
                 Real mindist;
                 Vec3 nt_l;
                 for (int j = 0; j < l - 1; j++) {
                     d_aux_list[j] = d[i - l + j + 1];
                     nt_aux_list[j] = nt[i - l + j + 1];
+                    multipliers_list[j] = multipliers[i - l + j + 1];
                 }
-                CalculateMaximumPenetration(d_aux_list, nt_aux_list,mindist,nt_l);
+                CalculateMaximumPenetration(d_aux_list, nt_aux_list,mindist,nt_l,multipliers_list);
                 
 
 
@@ -847,6 +942,7 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
     SumForces = MrottibTrans*Sum_Force_G;
     SumMoments = MrottibTrans*Sum_Moments_G;
     
+    std::cout << SumForces << std::endl;
 
 }
 
@@ -870,13 +966,30 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     std::vector<std::vector<int>> facesTib1 = ReadDataIntx3columns(filename_facesTib1, 26);
     std::string filename_facesTib2("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesTib2.csv");
     std::vector<std::vector<int>> facesTib2 = ReadDataIntx3columns(filename_facesTib2, 23);
+    std::string filename_conTibia1("C:/Gil/MeshesInAD/contactsKneeProsthesis/ConTib1.csv");
+    Vector_<Vec4> conTib1 = ReadDataDoublex4columns(filename_conTibia1, 26);
+    std::string filename_conTibia2("C:/Gil/MeshesInAD/contactsKneeProsthesis/ConTib2.csv");
+    Vector_<Vec4> conTib2 = ReadDataDoublex4columns(filename_conTibia2, 23);
+    std::string filename_conFem("C:/Gil/MeshesInAD/contactsKneeProsthesis/ConFem.csv");
+    Vector_<Vec4> conFem = ReadDataDoublex4columns(filename_conFem, 185);
 
     // Sum shift translation to the femur
     femPoints = femPoints + Vec3(0.0, 0.042, 0.0);
 
+    Vector_<Vec3> cont_centers_Fem(conFem.size(), Vec3(0));
+    Vector_<Real> conFem_r(conFem.size());
+    for (int i = 0; i < conFem.size(); i++) {
+        cont_centers_Fem[i]=Vec3(conFem[i][0],conFem[i][1], conFem[i][2]) + Vec3(0.0, 0.042, 0.0);
+        conFem_r[i] = conFem[i][3];
+    }
+
+ /*   std::cout << "confem" << conFem << std::endl;
+    std::cout << "confem_r" << conFem_r << std::endl;*/
+
     //test with numerical values
     //knee_trans = Vec3(0.01, 0.03, 0.008);
     //knee_rot = Vec3(0.1, 0.03, 0.025);
+    std::cout << "knee_trans=" << knee_trans << std::endl;
 
     //// Apply transformations
     // Get matrix transformation of tibia with respect to the femur
@@ -886,10 +999,35 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     // Apply the transformation to all points of the tibia
     Vec4 tibPoints_transf_aux(1);
     Vector_<Vec3> tibPoints_transf(36);
+    Vec4 cont_centers_tib_aux1(1);
+    Vector_<Vec3> cont_centers_tib_transf1(conTib1.size());
+    Vector_<Real> conTib1_r(conTib1.size());
+    Vec4 cont_centers_tib_aux2(1);
+    Vector_<Vec3> cont_centers_tib_transf2(conTib2.size());
+    Vector_<Real> conTib2_r(conTib2.size());
     for (int i = 0; i < 36; i++) {
         tibPoints_transf_aux = Mtransf_tib*Vec4(tibPoints[i][0], tibPoints[i][1], tibPoints[i][2], 1.0);
+
         for (int j = 0; j < 3; j++) {
             tibPoints_transf[i][j] = tibPoints_transf_aux[j];
+        }
+    }
+    std::cout << conTib1.size() << std::endl;
+    for (int i = 0; i < conTib1.size(); i++) { // is the size of conTib correct?
+        cont_centers_tib_aux1 = Mtransf_tib * Vec4(conTib1[i][0], conTib1[i][1], conTib1[i][2], 1.0);
+        conTib1_r[i] = conTib1[i][3];
+
+        for (int j = 0; j < 3; j++) {
+            cont_centers_tib_transf1[i][j] = cont_centers_tib_aux1[j];
+        }
+    }
+    std::cout << conTib2.size() << std::endl;
+    for (int i = 0; i < conTib2.size(); i++) { // is the size of conTib correct?
+        cont_centers_tib_aux2 = Mtransf_tib * Vec4(conTib2[i][0], conTib2[i][1], conTib2[i][2], 1.0);
+        conTib2_r[i] = conTib2[i][3];
+
+        for (int j = 0; j < 3; j++) {
+            cont_centers_tib_transf2[i][j] = cont_centers_tib_aux2[j];
         }
     }
 
@@ -897,6 +1035,15 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     Vec4 originTib_G4 = Mtransf_tib*Vec4(0, 0, 0, 1);
     Vec3 originTib_G = Vec3(originTib_G4[0], originTib_G4[1], originTib_G4[2]);
     // 
+
+    // Calculate multipliers for all pairs at this instant
+    Vector_<Real> multipliers1(pairs1_list.size(),0.0);
+    multipliers1 = GenerateMultList(pairs1_list, cont_centers_Fem, cont_centers_tib_transf1, conFem_r, conTib1_r);
+    Vector_<Real> multipliers2(pairs2_list.size(), 0.0);
+    multipliers2 = GenerateMultList(pairs2_list, cont_centers_Fem, cont_centers_tib_transf2, conFem_r, conTib2_r);
+
+    /*std::cout << "multipliers1" << multipliers1 << std::endl;*/
+
 
     Real poisson =0.46;
     Real E = 400 * 1e6;
@@ -910,9 +1057,9 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     SumForces2.setToZero();
     SumMoments2.setToZero();
 
-    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib1, pairs1_list, SumForces1, SumMoments1, poisson, E, h, originTib_G, knee_trans, knee_rot);
+    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib1, pairs1_list, SumForces1, SumMoments1, poisson, E, h, originTib_G, multipliers1, knee_trans, knee_rot);
     std::cout << "forces=" << SumForces1 << " moments=" << SumMoments1 << std::endl;
-    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib2, pairs2_list, SumForces2, SumMoments2, poisson, E, h, originTib_G, knee_trans, knee_rot);
+    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib2, pairs2_list, SumForces2, SumMoments2, poisson, E, h, originTib_G, multipliers2, knee_trans, knee_rot);
     SumForces = SumForces1 + SumForces2;
     SumMoments = SumMoments1 + SumMoments2;
     SumForces_vert_Lat = SumForces1[1];
@@ -1271,6 +1418,7 @@ int F_generic(const T** arg, T** res) {
     Real SumForces_vert_Lat;
     Real SumForces_vert_Med;
     
+    //knee_trans = Vec3(0, 0.046, 0); // TO BE REMOVED
     ComputeKneeContactForces(knee_trans, knee_rot, KneeCont_SumForces, KneeCont_SumMoments, SumForces_vert_Lat, SumForces_vert_Med);
     Vec3 KneeCont_SumForces_onTibialTray_inTibialTrayFrame = -KneeCont_SumForces;
     Vec3 KneeCont_SumMoments_onTibialTray_inTibialTrayFrame = -KneeCont_SumMoments;
@@ -1543,6 +1691,9 @@ int F_generic(const T** arg, T** res) {
     /// Knee contact forces
     res[0][ndof + nc + nc + nc + nc] = value<T>(SumForces_vert_Lat);
     res[0][ndof + nc + nc + nc + nc + 1] = value<T>(SumForces_vert_Med);
+    std::cout << "SumForces_vert_Lat" << SumForces_vert_Lat << std::endl;
+    std::cout << "SumForces_vert_Med" << SumForces_vert_Med << std::endl;
+
     return 0;
 }
 
