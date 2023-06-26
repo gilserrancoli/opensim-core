@@ -814,9 +814,16 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
     std::cout << "k*pen" << k*pen << std::endl;
     std::cout << "exp(k*pen))" << exp(k * pen) << std::endl;
 
-    maxpen = (log(sum(exp(k*pen))+1e-16) / k); //version logSum
-    //maxpen = (log((1.0/pen.size())*sum(exp(k * pen))+1e-16) / k); //version MellowMax
+    //maxpen = (log(sum(exp(k*pen))+1e-16) / k); //version logSum
+    maxpen = (log((1.0/pen.size())*sum(exp(k * pen))+1e-16) / k); //version mellowmax
     //maxpen = max(pen); // version nosmooth
+    
+    //Real auxval(0.0);
+    //for (int i = 0; i < pen.size(); i++) {
+    //    auxval = auxval + pow(pen[i], 10.0);
+    //}
+    //Real auxval2 = pow(auxval, 1.0 / 10);
+    //maxpen = sum(pen*(0.5 * tanh(k * (pen - auxval2 + 1e-5)) + 0.5)); // version p norm
 
     std::cout << "sum(exp(k * pen))" << sum(exp(k * pen)) << std::endl;
     std::cout << "maxpen=" << maxpen << std::endl;
@@ -1064,6 +1071,8 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     SumMoments = SumMoments1 + SumMoments2;
     SumForces_vert_Lat = SumForces1[1];
     SumForces_vert_Med = SumForces2[1];
+    std::cout << "sumforces=" << SumForces << std::endl;
+
 }
 // Function F
 template<typename T>
@@ -1418,7 +1427,7 @@ int F_generic(const T** arg, T** res) {
     Real SumForces_vert_Lat;
     Real SumForces_vert_Med;
     
-    //knee_trans = Vec3(0, 0.046, 0); // TO BE REMOVED
+
     ComputeKneeContactForces(knee_trans, knee_rot, KneeCont_SumForces, KneeCont_SumMoments, SumForces_vert_Lat, SumForces_vert_Med);
     Vec3 KneeCont_SumForces_onTibialTray_inTibialTrayFrame = -KneeCont_SumForces;
     Vec3 KneeCont_SumMoments_onTibialTray_inTibialTrayFrame = -KneeCont_SumMoments;
