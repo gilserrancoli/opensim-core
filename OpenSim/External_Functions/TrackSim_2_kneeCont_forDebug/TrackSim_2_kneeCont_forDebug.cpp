@@ -52,6 +52,9 @@ constexpr int NP = 54;          // # parameters
 constexpr int NR = ndof+6+6+2+49;    // # residual torques + # GRFs + # GRMs + # KCF + # knee pressures
 
 constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
+constexpr int nfacesTib = 49;
+constexpr int nfacesFem = 188;
+constexpr int radForPairs = 1; // 1 is 1 cm
 
 // Helper function value
 template<typename T>
@@ -82,194 +85,147 @@ createSystemYIndexMap(const Model& model) {
     return sysYIndices;
 }
 
-Vector_<Vec4> ReadDataDoublex4columns(std::string filename, int nrows_in) {
+std::vector<Vec4> ReadDataDoublex4columns(std::string filename) {
 
 
     std::ifstream  file(filename);
 
     //
     double v1, v2, v3, v4;
-    Vector_<Vec4> out_csv(nrows_in);
+    std::vector<Vec4> out_csv;
 
-    int nrows = 0;
     if (file.is_open()) {
 
         std::string line;
 
-        while (!file.eof()) {
-
-            std::getline(file, line);
-
+        while (std::getline(file, line)) {
             std::istringstream iss(line);
+            std::string token;
+            std::vector<double> values;
 
-            std::cout << line << std::endl;
+            while (std::getline(iss, token, ',')) {
+                values.push_back(std::stod(token)); // Convert string to double and add to values vector
+            }
 
-            std::string delimiter = ",";
-            std::string token = line.substr(0, line.find(","));
-
-            size_t pos0 = 0;
-            pos0 = line.find(",");
-            std::string token1 = line.substr(0, pos0);
-            v1 = std::stod(token1);
-            line.erase(0, pos0 + delimiter.length());
-            size_t pos1 = line.find(",");
-            std::string token2 = line.substr(0, pos1);
-            v2 = std::stod(token2);
-            line.erase(0, pos1 + delimiter.length());
-            size_t pos2 = line.find(",");
-            std::string token3 = line.substr(0, pos2);
-            v3 = std::stod(token3);
-            line.erase(0, pos2 + delimiter.length());
-            size_t pos3 = line.find(",");
-            std::string token4 = line.substr(0, pos3);
-            v4 = std::stod(token4);
-
-            out_csv[nrows] = Vec4(v1, v2, v3, v4);
-            nrows = nrows + 1;
-
+            if (values.size() >= 4) {
+                out_csv.emplace_back(values[0], values[1], values[2], values[3]); // Create Vec4 object and add to out_csv
+            }
         }
 
         file.close();
     }
+    else {
+        std::cerr << "Error opening file." << std::endl;
+    }
     return out_csv;
 }
 
-std::vector<std::vector<int>> ReadDataIntx3columns(std::string filename, int nrows_in) {
+std::vector<std::vector<int>> ReadDataIntx3columns(std::string filename) {
 
 
     std::ifstream  file(filename);
 
-    //
     int v1, v2, v3;
-    std::vector<std::vector<int>> out_csv(nrows_in, std::vector<int>(3, 0));
+    std::vector<std::vector<int>> out_csv;
 
-    int nrows = 0;
     if (file.is_open()) {
 
         std::string line;
 
-        while (!file.eof()) {
-
-            std::getline(file, line);
-
+        while (std::getline(file, line)) {
             std::istringstream iss(line);
+            std::string token;
+            std::vector<int> row;
 
-            std::cout << line << std::endl;
+            while (std::getline(iss, token, ',')) {
+                row.push_back(std::stoi(token)); // Convert string to integer and add to the row vector
+            }
 
-            std::string delimiter = ",";
-            std::string token = line.substr(0, line.find(","));
-
-            size_t pos0 = 0;
-            pos0 = line.find(",");
-            std::string token1 = line.substr(0, pos0);
-            v1 = std::stoi(token1);
-            line.erase(0, pos0 + delimiter.length());
-            size_t pos1 = line.find(",");
-            std::string token2 = line.substr(0, pos1);
-            v2 = std::stoi(token2);
-            line.erase(0, pos1 + delimiter.length());
-            size_t pos2 = line.find(",");
-            std::string token3 = line.substr(0, pos2);
-            v3 = std::stoi(token3);
-
-            out_csv[nrows] = { v1, v2, v3 };
-            nrows = nrows + 1;
-
+            out_csv.push_back(row); // Add the row to the out_csv vector
         }
 
         file.close();
+
+    }
+    else {
+        std::cerr << "Error opening file." << std::endl;
     }
     return out_csv;
 }
 
-std::vector<std::vector<int>> ReadDataIntx2columns(std::string filename, int nrows_in) {
+std::vector<std::vector<int>> ReadDataIntx2columns(std::string filename) {
 
 
     std::ifstream  file(filename);
 
-    //
     int v1, v2;
-    std::vector<std::vector<int>> out_csv(nrows_in,std::vector<int>(2,0));
-   
-    int nrows = 0;
+    std::vector<std::vector<int>> out_csv;
     if (file.is_open()) {
-
         std::string line;
 
-        while (!file.eof()) {
-
-            std::getline(file, line);
-
+        while (std::getline(file, line)) {
             std::istringstream iss(line);
+            std::string token;
+            std::vector<int> row;
 
-            std::cout << line << std::endl;
-            std::string delimiter = ",";
-            std::string token = line.substr(0, line.find(","));
+            while (std::getline(iss, token, ',')) {
+                row.push_back(std::stoi(token)); // Convert string to integer and add to the row vector
+            }
 
-            
-            size_t pos0 = 0;
-            pos0 = line.find(",");
-            std::string token1 = line.substr(0, pos0);
-            v1 = std::stoi(token1);
-            line.erase(0, pos0 + delimiter.length());
-            size_t pos1 = line.find(",");
-            std::string token2 = line.substr(0, pos1);
-            v2 = std::stoi(token2);
-            
-            out_csv[nrows] = { v1, v2 };
-
-            nrows = nrows + 1;           
+            out_csv.push_back(row); // Add the row to the out_csv vector
         }
-        
         file.close();
+    }
+    else {
+        std::cerr << "Error opening file." << std::endl;
     }
     return out_csv;
 }
 
-Vector_<Vec3> ReadDataDoublex3columns(std::string filename, int nrows_in) {
+std::vector<Vec3> ReadDataDoublex3columns(std::string filename) {
 
-    
+
     std::ifstream  file(filename);
 
     //
     double v1, v2, v3;
-    Vector_<Vec3> out_csv(nrows_in);
-    
+    std::vector<Vec3> out_csv;
+
     int nrows = 0;
     if (file.is_open()) {
 
         std::string line;
-        
-        while (!file.eof()) {
 
-            std::getline(file, line);
-
+        while (std::getline(file, line)) {
             std::istringstream iss(line);
 
-            std::string delimiter = ",";
-            std::string token = line.substr(0, line.find(","));
+            std::string token;
+            std::vector<std::string> tokens;
 
-            size_t pos0 = 0;
-            pos0 = line.find(",");
-            std::string token1 = line.substr(0, pos0);
-            v1 = std::stod(token1);
-            line.erase(0, pos0 + delimiter.length());
-            size_t pos1 = line.find(",");
-            std::string token2 = line.substr(0, pos1);
-            v2 = std::stod(token2);
-            line.erase(0, pos1 + delimiter.length());
-            size_t pos2 = line.find(",");
-            std::string token3 = line.substr(0, pos2);
-            v3 = std::stod(token3);
+            // Split the line by comma and store tokens in a vector
+            while (std::getline(iss, token, ',')) {
+                tokens.push_back(token);
+            }
 
-            out_csv[nrows] = Vec3(v1, v2, v3);
+            // Check if the line has at least three tokens (assuming three values in each row)
+            if (tokens.size() >= 3) {
+                double v1 = std::stod(tokens[0]);
+                double v2 = std::stod(tokens[1]);
+                double v3 = std::stod(tokens[2]);
+
+                out_csv.emplace_back(v1, v2, v3); // Add Vec3 object to the vector
+            }
+
             nrows = nrows + 1;
 
         }
-        
+
         file.close();
     }
-  
+    else {
+        std::cerr << "Error opening file." << std::endl;
+    }
+
     return out_csv;
 }
 
@@ -434,7 +390,7 @@ Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
 
 }
 
-void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3 &SumForces, Vec3 &SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vector_<Real> multipliers, Vec3 knee_trans, Vec3 knee_rot, Vector &p_vec) {
+void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3 &SumForces, Vec3 &SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vector_<Real> multipliers, Vec3 knee_trans, Vec3 knee_rot, Vector &p_vec) {
     Vector_<Vec3> d(pairs_list.size());
     Vector_<Vec3> nt(pairs_list.size());
     Vector_<Vec3> force_s_l(0);
@@ -555,49 +511,43 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
 }
 
 void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, Vec3 &SumMoments, Real &SumForces_vert_Lat, Real &SumForces_vert_Med, Vector &pvec1, Vector &pvec2) {
-    // Read Geometry Information
-    std::string filename_tibPoints("C:/Gil/MeshesInAD/contactsKneeProsthesis/tibPoints.csv");
-    Vector_<Vec3> tibPoints = ReadDataDoublex3columns(filename_tibPoints, 36);
-    std::string filename_femPoints("C:/Gil/MeshesInAD/contactsKneeProsthesis/femPoints.csv");
-    Vector_<Vec3> femPoints = ReadDataDoublex3columns(filename_femPoints, 117);
-    //std::string filename_tibconList1("C:/Gil/MeshesInAD/contactsKneeProsthesis/tib1_connectivityList.csv");
-    //std::vector<std::vector<int>> tibConList1 = ReadDataIntx3columns(filename_tibconList1, 26);
-    //std::string filename_tibconList2("C:/Gil/MeshesInAD/contactsKneeProsthesis/tib2_connectivityList.csv");
-    //std::vector<std::vector<int>> tibConList2 = ReadDataIntx3columns(filename_tibconList2, 23);
-    int nrows_pairs1 = 0;
-    int nrows_pairs2 = 0;
-    std::string filename_pairs1("");
-    std::string filename_pairs2("");
-    if (numpairs == 932) {
-        nrows_pairs1 = 490;
-        nrows_pairs2 = 442;
-        filename_pairs1 = "C:/Gil/MeshesInAD/contactsKneeProsthesis/pairs1_932.csv";
-        filename_pairs2 = "C:/Gil/MeshesInAD/contactsKneeProsthesis/pairs2_932.csv";
-    }
-    else if (numpairs == 499) {
-        nrows_pairs1 = 287;
-        nrows_pairs2 = 212;
-        std::string filename_pairs1 = "C:/Gil/MeshesInAD/contactsKneeProsthesis/pairs1.csv";
-        std::string filename_pairs2 = "C:/Gil/MeshesInAD/contactsKneeProsthesis/pairs2.csv";
-    }
-    std::vector<std::vector<int>> pairs1_list = ReadDataIntx2columns(filename_pairs1, nrows_pairs1);
-    std::vector<std::vector<int>> pairs2_list = ReadDataIntx2columns(filename_pairs2, nrows_pairs2);
+    //// Read Geometry Information
+    std::string root_folder = "C:/Gil/MeshesInAD/contactsKneeProsthesis/";
+    // Read Points
+    std::string filename_femPoints = root_folder + "femPoints_" + std::to_string(nfacesFem) + ".csv";
+    std::vector<Vec3> femPoints = ReadDataDoublex3columns(filename_femPoints);
+    std::string filename_tibPoints = root_folder + "tibPoints_" + std::to_string(nfacesTib) + ".csv";
+    std::vector<Vec3> tibPoints = ReadDataDoublex3columns(filename_tibPoints);
+    // Read Faces
+    std::string filename_facesFem = root_folder + "facesFem_" + std::to_string(nfacesFem) + ".csv";
+    std::vector<std::vector<int>> facesFem = ReadDataIntx3columns(filename_facesFem);
+    std::string filename_facesTib1 = root_folder + "facesTib1_" + std::to_string(nfacesTib) + ".csv";
+    std::vector<std::vector<int>> facesTib1 = ReadDataIntx3columns(filename_facesTib1);
+    std::string filename_facesTib2 = root_folder + "facesTib2_" + std::to_string(nfacesTib) + ".csv";
+    std::vector<std::vector<int>> facesTib2 = ReadDataIntx3columns(filename_facesTib2);
+    // Read centers
+    std::string filename_conFem = root_folder + "ConFem_" + std::to_string(nfacesFem) + ".csv";
+    std::vector<Vec4> conFem = ReadDataDoublex4columns(filename_conFem);
+    std::string filename_conTibia1 = root_folder + "ConTib1_" + std::to_string(nfacesTib) + ".csv";
+    std::vector<Vec4> conTib1 = ReadDataDoublex4columns(filename_conTibia1);
+    std::string filename_conTibia2 = root_folder + "ConTib2_" + std::to_string(nfacesTib) + ".csv";
+    std::vector<Vec4> conTib2 = ReadDataDoublex4columns(filename_conTibia2);
 
-    std::string filename_facesFem("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesFem.csv");
-    std::vector<std::vector<int>> facesFem = ReadDataIntx3columns(filename_facesFem, 185);
-    std::string filename_facesTib1("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesTib1.csv");
-    std::vector<std::vector<int>> facesTib1 = ReadDataIntx3columns(filename_facesTib1, 26);
-    std::string filename_facesTib2("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesTib2.csv");
-    std::vector<std::vector<int>> facesTib2 = ReadDataIntx3columns(filename_facesTib2, 23);
-    std::string filename_conTibia1("C:/Gil/MeshesInAD/contactsKneeProsthesis/ConTib1.csv");
-    Vector_<Vec4> conTib1 = ReadDataDoublex4columns(filename_conTibia1, 26);
-    std::string filename_conTibia2("C:/Gil/MeshesInAD/contactsKneeProsthesis/ConTib2.csv");
-    Vector_<Vec4> conTib2 = ReadDataDoublex4columns(filename_conTibia2, 23);
-    std::string filename_conFem("C:/Gil/MeshesInAD/contactsKneeProsthesis/ConFem.csv");
-    Vector_<Vec4> conFem = ReadDataDoublex4columns(filename_conFem, 185);
+
+    //Read pairs
+    std::string filename_pairs1 = root_folder + "pairs1_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + std::to_string(radForPairs) + "cm.csv";
+    std::string filename_pairs2 = root_folder + "pairs2_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + std::to_string(radForPairs) + "cm.csv";
+
+    std::vector<std::vector<int>> pairs1_list = ReadDataIntx2columns(filename_pairs1);
+    std::vector<std::vector<int>> pairs2_list = ReadDataIntx2columns(filename_pairs2);
+
+    std::cout << filename_pairs1 << std::endl;
+    std::cout << pairs1_list[4][0] << " " << pairs1_list[4][1] << std::endl;
 
     // Sum shift translation to the femur
-    femPoints = femPoints + Vec3(0.0, 0.042, 0.0);
+    for (int i = 0; i < size(femPoints); i++) {
+        femPoints[i] = femPoints[i] + Vec3(0.0, 0.042, 0.0);
+    }
 
     Vector_<Vec3> cont_centers_Fem(conFem.size(), Vec3(0));
     Vector_<Real> conFem_r(conFem.size());
@@ -617,14 +567,14 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
 
     // Apply the transformation to all points of the tibia
     Vec4 tibPoints_transf_aux(1);
-    Vector_<Vec3> tibPoints_transf(36);
+    Vector_<Vec3> tibPoints_transf(size(tibPoints));
     Vec4 cont_centers_tib_aux1(1);
     Vector_<Vec3> cont_centers_tib_transf1(conTib1.size());
     Vector_<Real> conTib1_r(conTib1.size());
     Vec4 cont_centers_tib_aux2(1);
     Vector_<Vec3> cont_centers_tib_transf2(conTib2.size());
     Vector_<Real> conTib2_r(conTib2.size());
-    for (int i = 0; i < 36; i++) {
+    for (int i = 0; i < size(tibPoints); i++) {
         tibPoints_transf_aux = Mtransf_tib*Vec4(tibPoints[i][0], tibPoints[i][1], tibPoints[i][2], 1.0);
         for (int j = 0; j < 3; j++) {
             tibPoints_transf[i][j] = tibPoints_transf_aux[j];
@@ -681,8 +631,8 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     
     SumForces = SumForces1 + SumForces2;
     SumMoments = SumMoments1 + SumMoments2;
-    SumForces_vert_Lat = SumForces1[1];
-    SumForces_vert_Med = SumForces2[1];
+    SumForces_vert_Med = SumForces1[1];
+    SumForces_vert_Lat = SumForces2[1];
     std::cout << "sumforces=" << SumForces << std::endl;
 }
 // Function F

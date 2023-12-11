@@ -639,8 +639,8 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib2, pairs2_list, SumForces2, SumMoments2, poisson, E, h, originTib_G, multipliers2, knee_trans, knee_rot);
     SumForces = SumForces1 + SumForces2;
     SumMoments = SumMoments1 + SumMoments2;
-    SumForces_vert_Lat = SumForces2[1]; // tibial part 2 is lateral
     SumForces_vert_Med = SumForces1[1]; // tibial part 1 is medial
+    SumForces_vert_Lat = SumForces2[1]; // tibial part 2 is lateral
     std::cout << "sumforces=" << SumForces << std::endl;
 
 }
