@@ -1,0 +1,6 @@
+set(TEST_TARGET robotarm4dof_2_1_1_shovel)
+add_executable(${TEST_TARGET} ${TEST_TARGET}.cpp)
+target_link_libraries(${TEST_TARGET} osimSimulation)
+set_target_properties(${TEST_TARGET} PROPERTIES
+    FOLDER "External_Functions")
+		

@@ -51,6 +51,11 @@ constexpr int NU = ndof;        // # controls
 constexpr int NP = 54;          // # parameters
 constexpr int NR = ndof+6+6+2;    // # residual torques + # GRFs + # GRMs
 
+constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
+constexpr int nfacesTib = 49;
+constexpr int nfacesFem = 188;
+constexpr int radForPairs = 1; // 1 is 1 cm
+
 // Helper function value
 template<typename T>
 T value(const Recorder& e) { return e; }
@@ -80,593 +85,145 @@ createSystemYIndexMap(const Model& model) {
     return sysYIndices;
 }
 
-Vector_<Vec4> ReadDataDoublex4columns(std::string filename, int nrows_in) {
+std::vector<Vec4> ReadDataDoublex4columns(std::string filename) {
 
 
     std::ifstream  file(filename);
 
     //
     double v1, v2, v3, v4;
-    Vector_<Vec4> out_csv(nrows_in);
+    std::vector<Vec4> out_csv;
 
-    int nrows = 0;
     if (file.is_open()) {
 
         std::string line;
 
-        while (!file.eof()) {
-
-            std::getline(file, line);
-
+        while (std::getline(file, line)) {
             std::istringstream iss(line);
+            std::string token;
+            std::vector<double> values;
 
-            std::cout << line << std::endl;
+            while (std::getline(iss, token, ',')) {
+                values.push_back(std::stod(token)); // Convert string to double and add to values vector
+            }
 
-            std::string delimiter = ",";
-            std::string token = line.substr(0, line.find(","));
-
-            size_t pos0 = 0;
-            pos0 = line.find(",");
-            std::string token1 = line.substr(0, pos0);
-            v1 = std::stod(token1);
-            line.erase(0, pos0 + delimiter.length());
-            size_t pos1 = line.find(",");
-            std::string token2 = line.substr(0, pos1);
-            v2 = std::stod(token2);
-            line.erase(0, pos1 + delimiter.length());
-            size_t pos2 = line.find(",");
-            std::string token3 = line.substr(0, pos2);
-            v3 = std::stod(token3);
-            line.erase(0, pos2 + delimiter.length());
-            size_t pos3 = line.find(",");
-            std::string token4 = line.substr(0, pos3);
-            v4 = std::stod(token4);
-
-            out_csv[nrows] = Vec4(v1, v2, v3, v4);
-            nrows = nrows + 1;
-
+            if (values.size() >= 4) {
+                out_csv.emplace_back(values[0], values[1], values[2], values[3]); // Create Vec4 object and add to out_csv
+            }
         }
 
         file.close();
     }
+    else {
+        std::cerr << "Error opening file." << std::endl;
+    }
     return out_csv;
 }
 
-std::vector<std::vector<int>> ReadDataIntx3columns(std::string filename, int nrows_in) {
+std::vector<std::vector<int>> ReadDataIntx3columns(std::string filename) {
 
 
     std::ifstream  file(filename);
 
-    //
     int v1, v2, v3;
-    std::vector<std::vector<int>> out_csv(nrows_in, std::vector<int>(3, 0));
+    std::vector<std::vector<int>> out_csv;
 
-    int nrows = 0;
     if (file.is_open()) {
 
         std::string line;
 
-        while (!file.eof()) {
-
-            std::getline(file, line);
-
+        while (std::getline(file, line)) {
             std::istringstream iss(line);
+            std::string token;
+            std::vector<int> row;
 
-            std::cout << line << std::endl;
+            while (std::getline(iss, token, ',')) {
+                row.push_back(std::stoi(token)); // Convert string to integer and add to the row vector
+            }
 
-            std::string delimiter = ",";
-            std::string token = line.substr(0, line.find(","));
-
-            size_t pos0 = 0;
-            pos0 = line.find(",");
-            std::string token1 = line.substr(0, pos0);
-            v1 = std::stoi(token1);
-            line.erase(0, pos0 + delimiter.length());
-            size_t pos1 = line.find(",");
-            std::string token2 = line.substr(0, pos1);
-            v2 = std::stoi(token2);
-            line.erase(0, pos1 + delimiter.length());
-            size_t pos2 = line.find(",");
-            std::string token3 = line.substr(0, pos2);
-            v3 = std::stoi(token3);
-
-            out_csv[nrows] = { v1, v2, v3 };
-            nrows = nrows + 1;
-
+            out_csv.push_back(row); // Add the row to the out_csv vector
         }
 
         file.close();
+
+    }
+    else {
+        std::cerr << "Error opening file." << std::endl;
     }
     return out_csv;
 }
 
-std::vector<std::vector<int>> ReadDataIntx2columns(std::string filename, int nrows_in) {
+std::vector<std::vector<int>> ReadDataIntx2columns(std::string filename) {
 
 
     std::ifstream  file(filename);
 
-    //
     int v1, v2;
-    std::vector<std::vector<int>> out_csv(nrows_in,std::vector<int>(2,0));
-   
-    int nrows = 0;
+    std::vector<std::vector<int>> out_csv;
     if (file.is_open()) {
-
         std::string line;
 
-        while (!file.eof()) {
-
-            std::getline(file, line);
-
+        while (std::getline(file, line)) {
             std::istringstream iss(line);
+            std::string token;
+            std::vector<int> row;
 
-            std::cout << line << std::endl;
-            std::string delimiter = ",";
-            std::string token = line.substr(0, line.find(","));
+            while (std::getline(iss, token, ',')) {
+                row.push_back(std::stoi(token)); // Convert string to integer and add to the row vector
+            }
 
-            
-            size_t pos0 = 0;
-            pos0 = line.find(",");
-            std::string token1 = line.substr(0, pos0);
-            v1 = std::stoi(token1);
-            line.erase(0, pos0 + delimiter.length());
-            size_t pos1 = line.find(",");
-            std::string token2 = line.substr(0, pos1);
-            v2 = std::stoi(token2);
-            
-            out_csv[nrows] = { v1, v2 };
-
-            nrows = nrows + 1;           
+            out_csv.push_back(row); // Add the row to the out_csv vector
         }
-        
         file.close();
+        }else {
+        std::cerr << "Error opening file." << std::endl;
     }
     return out_csv;
 }
 
-Vector_<Vec3> ReadDataDoublex3columns(std::string filename, int nrows_in) {
+std::vector<Vec3> ReadDataDoublex3columns(std::string filename) {
 
     
     std::ifstream  file(filename);
 
     //
     double v1, v2, v3;
-    Vector_<Vec3> out_csv(nrows_in);
+    std::vector<Vec3> out_csv;
     
     int nrows = 0;
     if (file.is_open()) {
 
         std::string line;
-        
-        while (!file.eof()) {
 
-            std::getline(file, line);
-
+        while (std::getline(file, line)) {
             std::istringstream iss(line);
 
-            std::string delimiter = ",";
-            std::string token = line.substr(0, line.find(","));
+            std::string token;
+            std::vector<std::string> tokens;
 
-            size_t pos0 = 0;
-            pos0 = line.find(",");
-            std::string token1 = line.substr(0, pos0);
-            v1 = std::stod(token1);
-            line.erase(0, pos0 + delimiter.length());
-            size_t pos1 = line.find(",");
-            std::string token2 = line.substr(0, pos1);
-            v2 = std::stod(token2);
-            line.erase(0, pos1 + delimiter.length());
-            size_t pos2 = line.find(",");
-            std::string token3 = line.substr(0, pos2);
-            v3 = std::stod(token3);
+            // Split the line by comma and store tokens in a vector
+            while (std::getline(iss, token, ',')) {
+                tokens.push_back(token);
+            }
 
-            out_csv[nrows] = Vec3(v1, v2, v3);
+            // Check if the line has at least three tokens (assuming three values in each row)
+            if (tokens.size() >= 3) {
+                double v1 = std::stod(tokens[0]);
+                double v2 = std::stod(tokens[1]);
+                double v3 = std::stod(tokens[2]);
+
+                out_csv.emplace_back(v1, v2, v3); // Add Vec3 object to the vector
+            }
+
             nrows = nrows + 1;
 
         }
-        
+
         file.close();
+    }else {
+        std::cerr << "Error opening file." << std::endl;
     }
   
-
-    Vector_<Vec3> tibPoints(36);
-    tibPoints[0] = Vec3(0.0140, 0.0087, 0.0079);
-    tibPoints[1] = Vec3(0.0037, 0.0105, 0.0065);
-    tibPoints[2] = Vec3(0.0172, 0.0086, 0.0129);
-    tibPoints[3] = Vec3(-0.0069, 0.0117, 0.0059);
-    tibPoints[4] = Vec3(0.0052, 0.0060, 0.0181);
-    tibPoints[5] = Vec3(-0.0055, 0.0110, -0.0073);
-    tibPoints[6] = Vec3(0.0112, 0.0091, -0.0090);
-    tibPoints[7] = Vec3(-0.0064, 0.0078, -0.0153);
-    tibPoints[8] = Vec3(0.0173, 0.0067, 0.0199);
-    tibPoints[9] = Vec3(-0.0076, 0.0072, 0.0174);
-    tibPoints[10] = Vec3(0.0019, 0.0061, 0.0256);
-    tibPoints[11] = Vec3(-0.0192, 0.0117, 0.0165);
-    tibPoints[12] = Vec3(-0.0114, 0.0079, 0.0258);
-    tibPoints[13] = Vec3(-0.0206, 0.0120, 0.0245);
-    tibPoints[14] = Vec3(-0.0131, 0.0118, 0.0342);
-    tibPoints[15] = Vec3(-0.0064, 0.0092, 0.0325);
-    tibPoints[16] = Vec3(0.0161, 0.0069, 0.0273);
-    tibPoints[17] = Vec3(0.0106, 0.0087, 0.0333);
-    tibPoints[18] = Vec3(0.0010, 0.0118, 0.0373);
-    tibPoints[19] = Vec3(0.0253, 0.0091, 0.0184);
-    tibPoints[20] = Vec3(0.0212, 0.0089, 0.0300);
-    tibPoints[21] = Vec3(0.0122, 0.0087, 0.0382);
-    tibPoints[22] = Vec3(0.0198, 0.0089, -0.0095);
-    tibPoints[23] = Vec3(0.0167, 0.0067, -0.0190);
-    tibPoints[24] = Vec3(0.0231, 0.0089, -0.0299);
-    tibPoints[25] = Vec3(0.0165, 0.0068, -0.0260);
-    tibPoints[26] = Vec3(0.0122, 0.0088, -0.0327);
-    tibPoints[27] = Vec3(0.0065, 0.0062, -0.0176);
-    tibPoints[28] = Vec3(-0.0077, 0.0068, -0.0225);
-    tibPoints[29] = Vec3(0.0058, 0.0064, -0.0279);
-    tibPoints[30] = Vec3(-0.0115, 0.0119, -0.0351);
-    tibPoints[31] = Vec3(-0.0198, 0.0113, -0.0262);
-    tibPoints[32] = Vec3(-0.0071, 0.0084, -0.0305);
-    tibPoints[33] = Vec3(-0.0174, 0.0113, -0.0146);
-    tibPoints[34] = Vec3(0.0112, 0.0089, -0.0380);
-    tibPoints[35] = Vec3(0.0018, 0.0116, -0.0371);
-
-    Vector_<Vec3> facesTib(49);
-    facesTib[0] = Vec3(1, 2, 3);
-    facesTib[1] = Vec3(1, 3, 20);
-    facesTib[2] = Vec3(2, 4, 5);
-    facesTib[3] = Vec3(3, 2, 5);
-    facesTib[4] = Vec3(3, 5, 9);
-    facesTib[5] = Vec3(4, 10, 5);
-    facesTib[6] = Vec3(5, 10, 11);
-    facesTib[7] = Vec3(5, 11, 17);
-    facesTib[8] = Vec3(6, 7, 8);
-    facesTib[9] = Vec3(7, 24, 28);
-    facesTib[10] = Vec3(8, 7, 28);
-    facesTib[11] = Vec3(8, 34, 6);
-    facesTib[12] = Vec3(9, 5, 17);
-    facesTib[13] = Vec3(9, 17, 20);
-    facesTib[14] = Vec3(10, 12, 13);
-    facesTib[15] = Vec3(10, 13, 11);
-    facesTib[16] = Vec3(11, 16, 18);
-    facesTib[17] = Vec3(12, 10, 4);
-    facesTib[18] = Vec3(13, 15, 16);
-    facesTib[19] = Vec3(13, 14, 15);
-    facesTib[20] = Vec3(13, 16, 11);
-    facesTib[21] = Vec3(14, 13, 12);
-    facesTib[22] = Vec3(16, 15, 19);
-    facesTib[23] = Vec3(17, 11, 18);
-    facesTib[24] = Vec3(17, 21, 20);
-    facesTib[25] = Vec3(18, 16, 19);
-    facesTib[26] = Vec3(18, 19, 22);
-    facesTib[27] = Vec3(20, 3, 9);
-    facesTib[28] = Vec3(21, 17, 18);
-    facesTib[29] = Vec3(21, 18, 22);
-    facesTib[30] = Vec3(23, 24, 7);
-    facesTib[31] = Vec3(23, 25, 24);
-    facesTib[32] = Vec3(25, 26, 24);
-    facesTib[33] = Vec3(25, 27, 26);
-    facesTib[34] = Vec3(26, 27, 30);
-    facesTib[35] = Vec3(27, 25, 35);
-    facesTib[36] = Vec3(27, 35, 36);
-    facesTib[37] = Vec3(28, 29, 8);
-    facesTib[38] = Vec3(28, 24, 30);
-    facesTib[39] = Vec3(29, 28, 30);
-    facesTib[40] = Vec3(30, 33, 29);
-    facesTib[41] = Vec3(30, 24, 26);
-    facesTib[42] = Vec3(31, 32, 33);
-    facesTib[43] = Vec3(31, 33, 36);
-    facesTib[44] = Vec3(32, 34, 29);
-    facesTib[45] = Vec3(33, 32, 29);
-    facesTib[46] = Vec3(34, 8, 29);
-    facesTib[47] = Vec3(36, 33, 30);
-    facesTib[48] = Vec3(36, 30, 27);
-
-    Vector_<Vec3> femPoints(117);
-    femPoints[0] = Vec3(-0.0027, -0.0321, 0.0111);
-    femPoints[1] = Vec3(0.0144, -0.0332, 0.0130);
-    femPoints[2] = Vec3(0.0055, -0.0364, 0.0176);
-    femPoints[3] = Vec3(-0.0302, -0.0052, 0.0226);
-    femPoints[4] = Vec3(-0.0334, -0.0053, 0.0172);
-    femPoints[5] = Vec3(-0.0270, -0.0164, 0.0267);
-    femPoints[6] = Vec3(0.0333, -0.0140, 0.0310);
-    femPoints[7] = Vec3(0.0276, -0.0193, 0.0363);
-    femPoints[8] = Vec3(0.0277, -0.0257, 0.0311);
-    femPoints[9] = Vec3(0.0289, -0.0075, 0.0364);
-    femPoints[10] = Vec3(0.0324, -0.0017, 0.0264);
-    femPoints[11] = Vec3(0.0277, 0.0001, 0.0328);
-    femPoints[12] = Vec3(0.0345, -0.0075, 0.0252);
-    femPoints[13] = Vec3(0.0322, -0.0227, 0.0250);
-    femPoints[14] = Vec3(0.0259, -0.0299, 0.0200);
-    femPoints[15] = Vec3(0.0350, -0.0129, 0.0186);
-    femPoints[16] = Vec3(0.0289, 0.0022, 0.0159);
-    femPoints[17] = Vec3(0.0280, 0.0040, 0.0253);
-    femPoints[18] = Vec3(0.0331, -0.0038, 0.0169);
-    femPoints[19] = Vec3(0.0333, -0.0199, 0.0174);
-    femPoints[20] = Vec3(0.0272, -0.0225, 0.0093);
-    femPoints[21] = Vec3(0.0307, -0.0103, 0.0093);
-    femPoints[22] = Vec3(0.0297, -0.0177, 0.0093);
-    femPoints[23] = Vec3(0.0223, -0.0292, 0.0126);
-    femPoints[24] = Vec3(0.0129, -0.0311, 0.0091);
-    femPoints[25] = Vec3(0.0200, -0.0318, 0.0294);
-    femPoints[26] = Vec3(0.0203, -0.0265, 0.0365);
-    femPoints[27] = Vec3(-0.0070, -0.0306, 0.0331);
-    femPoints[28] = Vec3(-0.0151, -0.0291, 0.0303);
-    femPoints[29] = Vec3(-0.0039, -0.0341, 0.0311);
-    femPoints[30] = Vec3(-0.0236, -0.0227, 0.0271);
-    femPoints[31] = Vec3(-0.0231, -0.0260, 0.0217);
-    femPoints[32] = Vec3(0.0075, -0.0312, 0.0364);
-    femPoints[33] = Vec3(-0.0325, 0.0105, 0.0150);
-    femPoints[34] = Vec3(-0.0315, 0.0188, 0.0079);
-    femPoints[35] = Vec3(-0.0330, 0.0191, 0.0022);
-    femPoints[36] = Vec3(-0.0351, 0.0033, 0.0073);
-    femPoints[37] = Vec3(-0.0339, -0.0066, 0.0096);
-    femPoints[38] = Vec3(-0.0346, 0.0080, 0.0108);
-    femPoints[39] = Vec3(-0.0319, 0.0125, -0.0033);
-    femPoints[40] = Vec3(-0.0325, 0.0031, 0.0012);
-    femPoints[41] = Vec3(-0.0323, -0.0007, -0.0147);
-    femPoints[42] = Vec3(-0.0338, 0.0159, -0.0200);
-    femPoints[43] = Vec3(-0.0351, 0.0019, -0.0207);
-    femPoints[44] = Vec3(-0.0308, 0.0216, -0.0146);
-    femPoints[45] = Vec3(-0.0316, 0.0060, -0.0078);
-    femPoints[46] = Vec3(-0.0306, 0.0203, -0.0071);
-    femPoints[47] = Vec3(-0.0303, -0.0054, -0.0094);
-    femPoints[48] = Vec3(-0.0307, -0.0047, 0.0001);
-    femPoints[49] = Vec3(-0.0343, -0.0008, -0.0261);
-    femPoints[50] = Vec3(-0.0313, -0.0100, -0.0295);
-    femPoints[51] = Vec3(-0.0330, -0.0106, -0.0200);
-    femPoints[52] = Vec3(-0.0341, 0.0122, -0.0245);
-    femPoints[53] = Vec3(-0.0324, 0.0043, -0.0280);
-    femPoints[54] = Vec3(-0.0294, -0.0075, -0.0306);
-    femPoints[55] = Vec3(-0.0142, -0.0318, -0.0168);
-    femPoints[56] = Vec3(-0.0037, -0.0355, -0.0171);
-    femPoints[57] = Vec3(-0.0060, -0.0306, -0.0089);
-    femPoints[58] = Vec3(-0.0033, -0.0352, -0.0284);
-    femPoints[59] = Vec3(-0.0104, -0.0322, -0.0295);
-    femPoints[60] = Vec3(-0.0057, -0.0310, -0.0346);
-    femPoints[61] = Vec3(-0.0274, -0.0208, -0.0243);
-    femPoints[62] = Vec3(-0.0237, -0.0214, -0.0308);
-    femPoints[63] = Vec3(-0.0198, -0.0273, -0.0277);
-    femPoints[64] = Vec3(-0.0109, -0.0340, -0.0225);
-    femPoints[65] = Vec3(-0.0216, -0.0274, -0.0180);
-    femPoints[66] = Vec3(-0.0301, -0.0156, -0.0172);
-    femPoints[67] = Vec3(-0.0161, -0.0268, -0.0325);
-    femPoints[68] = Vec3(0.0035, -0.0367, -0.0237);
-    femPoints[69] = Vec3(-0.0273, -0.0133, -0.0088);
-    femPoints[70] = Vec3(-0.0240, -0.0187, -0.0105);
-    femPoints[71] = Vec3(-0.0250, -0.0158, -0.0021);
-    femPoints[72] = Vec3(-0.0263, -0.0168, 0.0064);
-    femPoints[73] = Vec3(-0.0303, -0.0159, 0.0122);
-    femPoints[74] = Vec3(-0.0236, -0.0251, 0.0153);
-    femPoints[75] = Vec3(-0.0143, -0.0277, -0.0103);
-    femPoints[76] = Vec3(-0.0179, -0.0227, 0.0004);
-    femPoints[77] = Vec3(-0.0164, -0.0264, 0.0085);
-    femPoints[78] = Vec3(-0.0110, -0.0273, -0.0021);
-    femPoints[79] = Vec3(-0.0103, -0.0287, 0.0064);
-    femPoints[80] = Vec3(-0.0158, -0.0309, 0.0157);
-    femPoints[81] = Vec3(-0.0082, -0.0334, 0.0147);
-    femPoints[82] = Vec3(-0.0034, -0.0359, 0.0195);
-    femPoints[83] = Vec3(-0.0100, -0.0341, 0.0246);
-    femPoints[84] = Vec3(-0.0302, -0.0154, 0.0203);
-    femPoints[85] = Vec3(0.0027, -0.0363, 0.0269);
-    femPoints[86] = Vec3(0.0137, -0.0356, 0.0239);
-    femPoints[87] = Vec3(0.0273, -0.0082, 0.0355);
-    femPoints[88] = Vec3(-0.0220 - 0.0206, -0.0319);
-    femPoints[89] = Vec3(0.0328, -0.0189, -0.0150);
-    femPoints[90] = Vec3(0.0244, -0.0253, -0.0092);
-    femPoints[91] = Vec3(0.0279, -0.0264, -0.0149);
-    femPoints[92] = Vec3(0.0294, -0.0005, -0.0127);
-    femPoints[93] = Vec3(0.0303, -0.0111, -0.0086);
-    femPoints[94] = Vec3(0.0333, -0.0095, -0.0139);
-    femPoints[95] = Vec3(0.0351, -0.0121, -0.0193);
-    femPoints[96] = Vec3(0.0291, 0.0036, -0.0212);
-    femPoints[97] = Vec3(0.0333, -0.0030, -0.0207);
-    femPoints[98] = Vec3(0.0310, -0.0249, -0.0227);
-    femPoints[99] = Vec3(0.0256, -0.0302, -0.0242);
-    femPoints[100] = Vec3(0.0344, -0.0162, -0.0259);
-    femPoints[101] = Vec3(0.0333, -0.0047, -0.0278);
-    femPoints[102] = Vec3(0.0283, 0.0004, -0.0323);
-    femPoints[103] = Vec3(0.0315, -0.0200, -0.0306);
-    femPoints[104] = Vec3(0.0265, -0.0262, -0.0320);
-    femPoints[105] = Vec3(0.0303, -0.0104, -0.0359);
-    femPoints[106] = Vec3(0.0270, -0.0208, -0.0364);
-    femPoints[107] = Vec3(0.0217, -0.0311, -0.0158);
-    femPoints[108] = Vec3(0.0152, -0.0318, -0.0116);
-    femPoints[109] = Vec3(0.0160, -0.0348, -0.0216);
-    femPoints[110] = Vec3(0.0061, -0.0360, -0.0168);
-    femPoints[111] = Vec3(0.0105, -0.0361, -0.0254);
-    femPoints[112] = Vec3(0.0189, -0.0317, -0.0304);
-    femPoints[113] = Vec3(0.0047, -0.0335, -0.0335);
-    femPoints[114] = Vec3(0.0175, -0.0289, -0.0352);
-    femPoints[115] = Vec3(-0.0005, -0.0331, -0.0123);
-    femPoints[116] = Vec3(0.0271, -0.0061, -0.0091);
-    femPoints = femPoints + Vec3(0, 0.042, 0);
-
-    /*Vector_<Vec3> facesFem(188);
-    faceFem[0] = Vec3(1     2     3
-    faceFem[0] = 1    82    78
-    faceFem[0] = 2    87     3
-    faceFem[0] = 3    83    82
-    faceFem[0] = 3    82     1
-    faceFem[0] = 3    86    83
-    faceFem[0] = 4     5     6
-    faceFem[0] = 5     4    34
-    faceFem[0] = 5    38    85
-    faceFem[0] = 6     5    85
-    faceFem[0] = 7     8     9
-    faceFem[0] = 7     9    14
-    faceFem[0] = 8     7    10
-    faceFem[0] = 9     8    27
-    faceFem[0] = 10    11    12
-    faceFem[0] = 10    12    88
-    faceFem[0] = 10    88     8
-    faceFem[0] = 11    10     7
-    faceFem[0] = 11    13    19
-    faceFem[0] = 12    11    18
-    faceFem[0] = 12    18    88
-    faceFem[0] = 13    11     7
-    faceFem[0] = 13     7    16
-    faceFem[0] = 14     9    15
-    faceFem[0] = 14    15    20
-    faceFem[0] = 15     9    26
-    faceFem[0] = 15    26    87
-    faceFem[0] = 15    87     2
-    16     7    14
-    16    14    20
-    16    20    23
-    17    18    11
-    17    11    19
-    17    19    22
-    19    13    16
-    19    16    22
-    20    15    21
-    20    21    23
-    21    15    24
-    21    24    25
-    22    16    23
-    24    15     2
-    24     2    25
-    26    27    33
-    26    33    87
-    27    26     9
-    28     6    29
-    28    29    30
-    29    31    32
-    29     6    31
-    29    32    84
-    29    84    30
-    30    33    28
-    31     6    85
-    32    74    75
-    32    81    84
-    34    39     5
-    35    36    34
-    36    39    34
-    37    38     5
-    37    36    40
-    37    40    41
-    38    37    41
-    38    41    49
-    38    49    74
-    39    37     5
-    39    36    37
-    40    45    46
-    40    46    41
-    40    36    47
-    41    46    49
-    42    43    44
-    42    52    67
-    42    67    48
-    44    50    52
-    44    43    53
-    45    43    46
-    46    43    42
-    46    42    48
-    47    45    40
-    48    67    70
-    48    70    49
-    48    49    46
-    49    70    72
-    49    72    73
-    49    73    74
-    50    51    52
-    50    44    53
-    50    53    54
-    50    54    51
-    51    62    52
-    51    55    89
-    52    42    44
-    52    62    67
-    55    51    54
-    56    57    58
-    56    65    57
-    56    58    76
-    57    59    69
-    57   116    58
-    59    60    61
-    61    68    89
-    61    60    68
-    61   114    59
-    62    63    64
-    62    64    66
-    63    68    64
-    63    62    51
-    64    60    65
-    65    60    59
-    65    59    57
-    66    64    65
-    66    65    56
-    66    67    62
-    66    56    76
-    66    76    71
-    67    66    71
-    68    60    64
-    68    63    89
-    69    59   114
-    70    67    71
-    70    71    72
-    71    76    72
-    72    77    73
-    73    77    78
-    74    73    75
-    75    81    32
-    76    77    72
-    76    58    79
-    77    79    80
-    77    76    79
-    77    80    78
-    78    75    73
-    78    81    75
-    78    82    81
-    80     1    78
-    81    82    83
-    81    83    84
-    84    83    86
-    84    86    30
-    85    38    74
-    85    74    32
-    85    32    31
-    86    33    30
-    87    33    86
-    87    86     3
-    89    63    51
-    90    91    92
-    90    92    99
-    90    95    94
-    91   109   108
-    93    94    95
-    93    95    98
-    94    91    90
-    95    90    96
-    96    90   101
-    97    93    98
-    97    98   102
-    98    95    96
-    98    96   102
-    99    92   100
-    100    92   108
-    100   110   113
-    100   113   105
-    101    90    99
-    101    99   104
-    102    96   101
-    102   103    97
-    102   101   106
-    103   102   106
-    104    99   105
-    105    99   100
-    105   113   115
-    105   115   107
-    106   101   104
-    106   104   107
-    107   104   105
-    108    92    91
-    108   109   110
-    108   110   100
-    110   109   111
-    110   111   112
-    111    57    69
-    111   116    57
-    112   111    69
-    112    69   114
-    113   110   112
-    117    94    93);*/
     return out_csv;
 }
 
@@ -738,7 +295,7 @@ Mat44 ftransf_function(Vec3 knee_trans, Vec3 knee_rot) {
 }
 
 Real CheckContact(Real overlap) {
-    Real k = 1e4; // k subject to change
+    Real k = 1e3; // k subject to change
     Real multiplier = (tanh(k * overlap) + 1.0) / 2.0;
     /*std::cout << multiplier << std::endl;*/
     return multiplier;
@@ -834,7 +391,7 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
 }
 
 Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
-    Real k = 5e4;
+    Real k = 5e5;
     Real pen = d;
 
     Real p_init = ((1 - poisson)*E / ((1 + poisson)*(1 - 2 * poisson)))*pen / h;
@@ -847,7 +404,7 @@ Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
     return p;
 }
 
-void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3 &SumForces, Vec3 &SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vector_<Real> multipliers, Vec3 knee_trans, Vec3 knee_rot) {
+void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3 &SumForces, Vec3 &SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vector_<Real> multipliers, Vec3 knee_trans, Vec3 knee_rot) {
     Vector_<Vec3> d(pairs_list.size());
     Vector_<Vec3> nt(pairs_list.size());
     Vector_<Vec3> force_s_l(0);
@@ -862,7 +419,10 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
     //for (int i = 0; i < facesFem.size(); i++) {
     //    std::cout << "faces_fem[" << i << "]=" << facesFem.at(i).at(0) << " " << facesFem.at(i).at(1) << facesFem.at(i).at(2) << std::endl;
     //}
-    
+    std::cout << "femPoints" << std::endl;
+    for (int i = 0; i < size(femPoints); i++) {
+        std::cout << femPoints[i] << std::endl;
+    }
 
     for (int i = 0; i < pairs_list.size(); i++) {
         std::cout << pairs_list[i][1] - 1 << std::endl;
@@ -954,34 +514,43 @@ void CalculateForceCompartment(Vector_<Vec3> femPoints, std::vector<std::vector<
 }
 
 void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, Vec3 &SumMoments, Real &SumForces_vert_Lat, Real &SumForces_vert_Med) {
-    // Read Geometry Information
-    std::string filename_tibPoints("C:/Gil/MeshesInAD/contactsKneeProsthesis/tibPoints.csv");
-    Vector_<Vec3> tibPoints = ReadDataDoublex3columns(filename_tibPoints, 36);
-    std::string filename_femPoints("C:/Gil/MeshesInAD/contactsKneeProsthesis/femPoints.csv");
-    Vector_<Vec3> femPoints = ReadDataDoublex3columns(filename_femPoints, 117);
-    //std::string filename_tibconList1("C:/Gil/MeshesInAD/contactsKneeProsthesis/tib1_connectivityList.csv");
-    //std::vector<std::vector<int>> tibConList1 = ReadDataIntx3columns(filename_tibconList1, 26);
-    //std::string filename_tibconList2("C:/Gil/MeshesInAD/contactsKneeProsthesis/tib2_connectivityList.csv");
-    //std::vector<std::vector<int>> tibConList2 = ReadDataIntx3columns(filename_tibconList2, 23);
-    std::string filename_pairs1("C:/Gil/MeshesInAD/contactsKneeProsthesis/pairs1.csv");
-    std::vector<std::vector<int>> pairs1_list = ReadDataIntx2columns(filename_pairs1, 287);
-    std::string filename_pairs2("C:/Gil/MeshesInAD/contactsKneeProsthesis/pairs2.csv");
-    std::vector<std::vector<int>> pairs2_list = ReadDataIntx2columns(filename_pairs2, 212);
-    std::string filename_facesFem("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesFem.csv");
-    std::vector<std::vector<int>> facesFem = ReadDataIntx3columns(filename_facesFem, 185);
-    std::string filename_facesTib1("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesTib1.csv");
-    std::vector<std::vector<int>> facesTib1 = ReadDataIntx3columns(filename_facesTib1, 26);
-    std::string filename_facesTib2("C:/Gil/MeshesInAD/contactsKneeProsthesis/facesTib2.csv");
-    std::vector<std::vector<int>> facesTib2 = ReadDataIntx3columns(filename_facesTib2, 23);
-    std::string filename_conTibia1("C:/Gil/MeshesInAD/contactsKneeProsthesis/ConTib1.csv");
-    Vector_<Vec4> conTib1 = ReadDataDoublex4columns(filename_conTibia1, 26);
-    std::string filename_conTibia2("C:/Gil/MeshesInAD/contactsKneeProsthesis/ConTib2.csv");
-    Vector_<Vec4> conTib2 = ReadDataDoublex4columns(filename_conTibia2, 23);
-    std::string filename_conFem("C:/Gil/MeshesInAD/contactsKneeProsthesis/ConFem.csv");
-    Vector_<Vec4> conFem = ReadDataDoublex4columns(filename_conFem, 185);
+    //// Read Geometry Information
+    std::string root_folder = "C:/Gil/MeshesInAD/contactsKneeProsthesis/";
+    // Read Points
+    std::string filename_femPoints = root_folder + "femPoints_" + std::to_string(nfacesFem) + ".csv";
+    std::vector<Vec3> femPoints = ReadDataDoublex3columns(filename_femPoints);
+    std::string filename_tibPoints=root_folder+"tibPoints_" + std::to_string(nfacesTib) + ".csv";
+    std::vector<Vec3> tibPoints = ReadDataDoublex3columns(filename_tibPoints);
+    // Read Faces
+    std::string filename_facesFem = root_folder + "facesFem_" + std::to_string(nfacesFem) + ".csv";
+    std::vector<std::vector<int>> facesFem = ReadDataIntx3columns(filename_facesFem);
+    std::string filename_facesTib1 = root_folder + "facesTib1_" +std::to_string(nfacesTib) + ".csv";
+    std::vector<std::vector<int>> facesTib1 = ReadDataIntx3columns(filename_facesTib1);
+    std::string filename_facesTib2 = root_folder + "facesTib2_" + std::to_string(nfacesTib) + ".csv";
+    std::vector<std::vector<int>> facesTib2 = ReadDataIntx3columns(filename_facesTib2);
+    // Read centers
+    std::string filename_conFem = root_folder + "ConFem_" + std::to_string(nfacesFem) + ".csv";
+    std::vector<Vec4> conFem = ReadDataDoublex4columns(filename_conFem);
+    std::string filename_conTibia1 = root_folder + "ConTib1_" +std::to_string(nfacesTib) + ".csv";
+    std::vector<Vec4> conTib1 = ReadDataDoublex4columns(filename_conTibia1);
+    std::string filename_conTibia2 = root_folder + "ConTib2_" + std::to_string(nfacesTib) + ".csv";
+    std::vector<Vec4> conTib2 = ReadDataDoublex4columns(filename_conTibia2);
+
+
+    //Read pairs
+    std::string filename_pairs1 = root_folder + "pairs1_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + std::to_string(radForPairs) + "cm.csv";
+    std::string filename_pairs2 = root_folder + "pairs2_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + std::to_string(radForPairs) + "cm.csv";
+
+    std::vector<std::vector<int>> pairs1_list = ReadDataIntx2columns(filename_pairs1);
+    std::vector<std::vector<int>> pairs2_list = ReadDataIntx2columns(filename_pairs2);
+    
+    std::cout << filename_pairs1 << std::endl;
+    std::cout << pairs1_list[4][0] << " " << pairs1_list[4][1] << std::endl;  
 
     // Sum shift translation to the femur
-    femPoints = femPoints + Vec3(0.0, 0.042, 0.0);
+    for (int i = 0; i < size(femPoints); i++) {
+        femPoints[i] = femPoints[i] + Vec3(0.0, 0.042, 0.0);
+    }
 
     Vector_<Vec3> cont_centers_Fem(conFem.size(), Vec3(0));
     Vector_<Real> conFem_r(conFem.size());
@@ -990,9 +559,10 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         conFem_r[i] = conFem[i][3];
     }
 
- /*   std::cout << "confem" << conFem << std::endl;
-    std::cout << "confem_r" << conFem_r << std::endl;*/
+    std::cout << facesFem[0][0] << facesFem[0][1] << facesFem[0][2] << std::endl;
+    std::cout << facesFem[1][0] << facesFem[1][1] << facesFem[1][2] << std::endl;
 
+ 
     //test with numerical values
     //knee_trans = Vec3(0.01, 0.03, 0.008);
     //knee_rot = Vec3(0.1, 0.03, 0.025);
@@ -1005,14 +575,14 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
 
     // Apply the transformation to all points of the tibia
     Vec4 tibPoints_transf_aux(1);
-    Vector_<Vec3> tibPoints_transf(36);
+    Vector_<Vec3> tibPoints_transf(size(tibPoints));
     Vec4 cont_centers_tib_aux1(1);
     Vector_<Vec3> cont_centers_tib_transf1(conTib1.size());
     Vector_<Real> conTib1_r(conTib1.size());
     Vec4 cont_centers_tib_aux2(1);
     Vector_<Vec3> cont_centers_tib_transf2(conTib2.size());
     Vector_<Real> conTib2_r(conTib2.size());
-    for (int i = 0; i < 36; i++) {
+    for (int i = 0; i < size(tibPoints); i++) {
         tibPoints_transf_aux = Mtransf_tib*Vec4(tibPoints[i][0], tibPoints[i][1], tibPoints[i][2], 1.0);
 
         for (int j = 0; j < 3; j++) {
@@ -1069,8 +639,8 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib2, pairs2_list, SumForces2, SumMoments2, poisson, E, h, originTib_G, multipliers2, knee_trans, knee_rot);
     SumForces = SumForces1 + SumForces2;
     SumMoments = SumMoments1 + SumMoments2;
-    SumForces_vert_Lat = SumForces1[1];
-    SumForces_vert_Med = SumForces2[1];
+    SumForces_vert_Lat = SumForces2[1]; // tibial part 2 is lateral
+    SumForces_vert_Med = SumForces1[1]; // tibial part 1 is medial
     std::cout << "sumforces=" << SumForces << std::endl;
 
 }
@@ -1418,6 +988,8 @@ int F_generic(const T** arg, T** res) {
     
     Vec3 knee_rot(0);
     knee_rot = Vec3(-knee_rot_0[0], -knee_rot_0[1], knee_rot_0[2]); // change sign to be consistent with joint definition (reverse in .osim)
+
+    std::cout << "pelvis_ty=" << model->getStateVariableValue(*state, "knee_r/pelvis_ty/value") << std::endl;
 
     // Compute Resulting contact wrench at the center of the tibia
     Vec3 KneeCont_SumForces;
