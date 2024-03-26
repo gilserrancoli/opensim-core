@@ -311,7 +311,7 @@ Vector_<Real> GenerateMultList_cylinders(std::vector<std::vector<int>> pairs_lis
         Vec3 arg1 = Vec3(femplanes[pairs_list[i][1] - 1][0], femplanes[pairs_list[i][1] - 1][1], femplanes[pairs_list[i][1] - 1][2]);
         Vec3 arg2 = Vec3(cont_centers_tib_transf[pairs_list[i][0] - 1][0], cont_centers_tib_transf[pairs_list[i][0] - 1][1], cont_centers_tib_transf[pairs_list[i][0] - 1][2]);
         Vec3 arg3 = Vec3(tibplanes[pairs_list[i][0] - 1][0], tibplanes[pairs_list[i][0] - 1][1], tibplanes[pairs_list[i][0] - 1][2]);
-        Real d = dot(arg1, arg2) + femplanes[pairs_list[i][1] - 1][3] / (-dot(arg1, arg3));
+        Real d = (dot(arg1, arg2) + femplanes[pairs_list[i][1] - 1][3] )/ (-dot(arg1, arg3));
         Vec3 prod_aux = Vec3(tibplanes[pairs_list[i][0] - 1][0] * d, tibplanes[pairs_list[i][0] - 1][1] * d, tibplanes[pairs_list[i][0] - 1][2] * d);
         Vec3 Pt = cont_centers_tib_transf[pairs_list[i][0] - 1] + prod_aux;
         Vec3 d_mult = cont_centers_Fem[pairs_list[i][1] - 1] - Pt;
@@ -433,7 +433,7 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
 
         }
         d[i] = d_aux;
-        nt[i] = Vec3(tibplanes[pairs_list[i][0]][0], tibplanes[pairs_list[i][0]][1], tibplanes[pairs_list[i][0]][2]);
+        nt[i] = Vec3(tibplanes[pairs_list[i][0]-1][0], tibplanes[pairs_list[i][0]-1][1], tibplanes[pairs_list[i][0]-1][2]);
         
         /*std::cout << "pairs_list" << pairs_list[i][0] - 1 << " " << pairs_list[i][1] - 1 << std::endl;*/
         if (i > 0) {
@@ -623,7 +623,7 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         tibplanes1[i][2] = nt_i[2];
         tibplanes1[i][3] = Dplanetib;
         Real anglec = acos(dot(edge1_t, edge2_t) / (edge1_t.norm() * edge2_t.norm()));
-        At1[i] = (1 / 2) * edge1_t.norm() * edge2_t.norm() * sin(anglec);
+        At1[i] = (1.0 / 2.0) * edge1_t.norm() * edge2_t.norm() * sin(anglec);
     }
     for (int i = 0; i < conTib2_r.size(); i++) {
         Vec3 edge1_t = tibPoints_transf[facesTib2[i][1] - 1] - tibPoints_transf[facesTib2[i][0] - 1];
@@ -637,7 +637,7 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         tibplanes2[i][2] = nt_i[2];
         tibplanes2[i][3] = Dplanetib;
         Real anglec = acos(dot(edge1_t, edge2_t) / (edge1_t.norm() * edge2_t.norm()));
-        At2[i] = (1 / 2) * edge1_t.norm() * edge2_t.norm() * sin(anglec);
+        At2[i] = (1.0 / 2.0) * edge1_t.norm() * edge2_t.norm() * sin(anglec);
     }
 
     if (strcmp(multiplier_method, "cylinders") == 0) {
