@@ -297,7 +297,7 @@ Mat44 ftransf_function(Vec3 knee_trans, Vec3 knee_rot) {
 }
 
 Real CheckContact(Real overlap) {
-    Real k = 1e4; // k subject to change
+    Real k = 1e3; // k subject to change
     Real multiplier = (tanh(k * overlap) + 1.0) / 2.0;
     /*std::cout << multiplier << std::endl;*/
     return multiplier;
