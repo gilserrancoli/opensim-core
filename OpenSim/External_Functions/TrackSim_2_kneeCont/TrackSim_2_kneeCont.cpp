@@ -310,7 +310,7 @@ Vector_<Real> GenerateMultList_cylinders(std::vector<std::vector<int>> pairs_lis
         Vec3 arg1 = Vec3(femplanes[pairs_list[i][1]-1][0], femplanes[pairs_list[i][1]-1][1], femplanes[pairs_list[i][1]-1][2]);
         Vec3 arg2 = Vec3(cont_centers_tib_transf[pairs_list[i][0]-1][0], cont_centers_tib_transf[pairs_list[i][0]-1][1], cont_centers_tib_transf[pairs_list[i][0]-1][2]);
         Vec3 arg3 = Vec3(tibplanes[pairs_list[i][0]-1][0], tibplanes[pairs_list[i][0]-1][1], tibplanes[pairs_list[i][0]-1][2]);
-        Real d = dot(arg1, arg2) + femplanes[pairs_list[i][1]-1][3] / (-dot(arg1, arg3));
+        Real d = (dot(arg1, arg2) + femplanes[pairs_list[i][1]-1][3]) / (-dot(arg1, arg3));
         std::cout << "arg1=" << arg1 << std::endl;
         std::cout << "arg2=" << arg2 << std::endl;
         std::cout << "arg3=" << arg3 << std::endl;
@@ -327,13 +327,13 @@ Vector_<Real> GenerateMultList_cylinders(std::vector<std::vector<int>> pairs_lis
         std::cout << "femplanes[pairs_list[i][1]-1]=" << femplanes[pairs_list[i][1] - 1] << std::endl;
         std::cout << "d=" << d << std::endl;
         std::cout << "prod_aux" << prod_aux << std::endl;
-        std::cout << "d_mult=" << Pt << std::endl;
+        std::cout << "Pt=" << Pt << std::endl;
         std::cout << "d_mult=" << d_mult << std::endl;
         std::cout << "distaux=" << distaux << std::endl;
         mlist[i]= CheckContact(distaux);
         std::cout << "mlist[i]=" << mlist[i] << std::endl;
     }
-    
+    std::cout << "mlist=" << mlist << std::endl;
     return mlist;
 }
 
@@ -410,6 +410,7 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
     std::cout << "maxpen=" << maxpen << std::endl;
     std::cout << "1.0 / pen.size()" << 1.0/pen.size() << std::endl;
     std::cout << "true max pen=" << max(pen) << std::endl;
+    std::cout << "nt_v=" << nt_v << std::endl;
     //maxpen = max(pen);
     nt_l = nt_v[0];
 }
@@ -428,7 +429,7 @@ Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
     return p;
 }
 
-void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3 &SumForces, Vec3 &SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vector_<Real> multipliers, Vec3 knee_trans, Vec3 knee_rot, Vector_<Real> At, Vector_<Vec4> tibplanes, Vector_<Vec3> cont_centers_Fem, Vector_<Vec3> cont_centers_tib_transf) {
+void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3& SumForces, Vec3& SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vector_<Real> multipliers, Vec3 knee_trans, Vec3 knee_rot, Vector_<Real> At, Vector_<Vec4> tibplanes, Vector_<Vec3> cont_centers_Fem, Vector_<Vec3> cont_centers_tib_transf) {
     Vector_<Vec3> d(pairs_list.size());
     Vector_<Vec3> nt(pairs_list.size());
     Vector_<Vec3> force_s_l(0);
@@ -437,12 +438,16 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
 
     int k = 1; //number of contacting elements in femur
     int l = 1; //count number of elements contacting element k of femur
-    
+
     //std::cout << "facesFem.size()" << facesFem.size() << std::endl;
     //for (int i = 0; i < facesFem.size(); i++) {
     //    std::cout << "faces_fem[" << i << "]=" << facesFem.at(i).at(0) << " " << facesFem.at(i).at(1) << facesFem.at(i).at(2) << std::endl;
     //}
     std::cout << "femPoints" << std::endl;
+    for (int i = 0; i < tibplanes.size(); i++) {
+        std::cout << "tibplanes[pairs_list[i][0]]=" << tibplanes[pairs_list[i][0]] << std::endl;
+    }
+
     for (int i = 0; i < size(femPoints); i++) {
         std::cout << femPoints[i] << std::endl;
     }
@@ -456,31 +461,32 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
             CalculateIntersection_cylinders(cont_centers_tib_transf[pairs_list[i][0] - 1], cont_centers_Fem[pairs_list[i][1] - 1], d_aux);
         }
         else if (strcmp(multiplier_method, "spheres") == 0) {
-            std::vector<int> facesFem_ind = facesFem[pairs_list[i][1]-1];
+            std::vector<int> facesFem_ind = facesFem[pairs_list[i][1] - 1];
             Vector_<Vec3> fem_Points_ind(3);
             for (int j = 0; j < 3; j++) {
-                fem_Points_ind[j] = femPoints[facesFem_ind[j]-1];
+                fem_Points_ind[j] = femPoints[facesFem_ind[j] - 1];
             }
-        
-            std::vector<int> facesTib_ind = facesTib[pairs_list[i][0]-1];
+
+            std::vector<int> facesTib_ind = facesTib[pairs_list[i][0] - 1];
             Vector_<Vec3> tib_Points_ind(3);
             for (int j = 0; j < 3; j++) {
-                tib_Points_ind[j] = tibPoints_transf[facesTib_ind[j]-1];
+                tib_Points_ind[j] = tibPoints_transf[facesTib_ind[j] - 1];
             }
-                CalculateIntersection_spheres(fem_Points_ind, tib_Points_ind, d_aux); // first element in pairs is tibia, second femur
+            CalculateIntersection_spheres(fem_Points_ind, tib_Points_ind, d_aux); // first element in pairs is tibia, second femur
         }
         d[i] = d_aux;
-        nt[i] = Vec3(tibplanes[pairs_list[i][0]][0], tibplanes[pairs_list[i][0]][1], tibplanes[pairs_list[i][0]][2]);
+        nt[i] = Vec3(tibplanes[pairs_list[i][0]-1][0], tibplanes[pairs_list[i][0]-1][1], tibplanes[pairs_list[i][0]-1][2]);
         std::cout << multipliers << std::endl;
 
+
         if (i > 0) {
-            if ((pairs_list[i][0] == pairs_list[i - 1][0])&&(i<pairs_list.size()-1)) {
+            if ((pairs_list[i][0] == pairs_list[i - 1][0]) && (i < pairs_list.size() - 1)) {
                 l = l + 1;
             }
             else {
                 Vector_<Vec3> d_aux_list(l - 1);
                 Vector_<Vec3> nt_aux_list(l - 1);
-                Vector_<Real> multipliers_list(l-1);
+                Vector_<Real> multipliers_list(l - 1);
                 Real maxpen;
                 Vec3 nt_l;
                 for (int j = 0; j < l - 1; j++) {
@@ -488,15 +494,16 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
                     nt_aux_list[j] = nt[i - l + j + 1];
                     multipliers_list[j] = multipliers[i - l + j + 1];
                 }
-                CalculateMaximumPenetration(d_aux_list, nt_aux_list,maxpen,nt_l,multipliers_list);
+                CalculateMaximumPenetration(d_aux_list, nt_aux_list, maxpen, nt_l, multipliers_list);
                 std::cout << maxpen << std::endl;
-
+                std::cout << At[pairs_list[i][0] - 1] << std::endl;
+                std::cout << "nt_l=" << nt_l << std::endl;
                 Real p = CalculatePressure(poisson, E, maxpen, h);
 
                 force_s_l.resizeKeep(k);
-                force_s_l[k - 1] = p*At[pairs_list[i][0]-1]*nt_l;
+                force_s_l[k - 1] = p * At[pairs_list[i][0] - 1] * nt_l;
                 face_s.resizeKeep(k);
-                face_s[k-1] = pairs_list[i - 2][0];
+                face_s[k - 1] = pairs_list[i - 2][0];
                 mom_O.resizeKeep(k);
                 mom_O[k - 1] = cross(cont_centers_tib_transf[pairs_list[i][0] - 1] - originTib_G, force_s_l[k - 1]);
 
@@ -514,7 +521,9 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
         }
 
     }
-    
+    for (int i = 0; i < nt.size(); i++){
+        std::cout << "nt=" << nt[i] << std::endl;
+    }
     Vec3 Sum_Force_G;
     Vec3 Sum_Moments_G;
     Sum_Force_G.setToZero();
@@ -653,7 +662,7 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         tibplanes1[i][2] = nt_i[2];
         tibplanes1[i][3] = Dplanetib;
         Real anglec = acos(dot(edge1_t, edge2_t) / (edge1_t.norm() * edge2_t.norm()));
-        At1[i] = (1 / 2) * edge1_t.norm() * edge2_t.norm() * sin(anglec);
+        At1[i] = (1.0 / 2.0) * edge1_t.norm() * edge2_t.norm() * sin(anglec);
     }
     for (int i = 0; i < conTib2_r.size(); i++) {
         Vec3 edge1_t = tibPoints_transf[facesTib2[i][1] - 1] - tibPoints_transf[facesTib2[i][0] - 1];
@@ -667,9 +676,10 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         tibplanes2[i][2] = nt_i[2];
         tibplanes2[i][3] = Dplanetib;
         Real anglec = acos(dot(edge1_t, edge2_t) / (edge1_t.norm() * edge2_t.norm()));
-        At2[i] = (1 / 2) * edge1_t.norm() * edge2_t.norm() * sin(anglec);
+        At2[i] = (1.0 / 2.0) * edge1_t.norm() * edge2_t.norm() * sin(anglec);
     }
-
+    std::cout << "At1=" << At1 << std::endl;
+    std::cout << "At2=" << At2 << std::endl;
     if (strcmp(multiplier_method, "cylinders") == 0) {
         // method of cylinders to generate multipliers
 
@@ -711,7 +721,8 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         multipliers2 = GenerateMultList_spheres(pairs2_list, cont_centers_Fem, cont_centers_tib_transf2, conFem_r, conTib2_r);
     }
 
-    /*std::cout << "multipliers1" << multipliers1 << std::endl;*/
+    std::cout << "multipliers1" << multipliers1 << std::endl;
+    std::cout << "multipliers2" << multipliers2 << std::endl;
 
 
     Real poisson =0.46;
