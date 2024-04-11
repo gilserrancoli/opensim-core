@@ -54,8 +54,7 @@ constexpr int NR = ndof+6+6+2;    // # residual torques + # GRFs + # GRMs
 constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
 constexpr int nfacesTib = 49;
 constexpr int nfacesFem = 188;
-constexpr int radForPairs = 1; // 1 is 1 cm
-
+constexpr const char radForPairs[] = "05"; // 1 is 1 cm, 05 is 0.5 cm
 constexpr char* multiplier_method = "cylinders"; // multiplier method: "cylinders" or "spheres"
 
 // Helper function value
@@ -568,8 +567,10 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
 
 
     //Read pairs
-    std::string filename_pairs1 = root_folder + "pairs1_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + std::to_string(radForPairs) + "cm.csv";
-    std::string filename_pairs2 = root_folder + "pairs2_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + std::to_string(radForPairs) + "cm.csv";
+    std::string filename_pairs1 = root_folder + "pairs1_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + radForPairs + "cm.csv";
+    std::string filename_pairs2 = root_folder + "pairs2_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + radForPairs + "cm.csv";
+
+    std::cout << filename_pairs1 << std::endl;
 
     std::vector<std::vector<int>> pairs1_list = ReadDataIntx2columns(filename_pairs1);
     std::vector<std::vector<int>> pairs2_list = ReadDataIntx2columns(filename_pairs2);
