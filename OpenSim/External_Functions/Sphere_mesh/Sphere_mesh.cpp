@@ -47,11 +47,11 @@ constexpr int n_out = 1;
 constexpr int ndof = 6;        // # degrees of freedom (excluding locked)
 constexpr int NX = ndof*2;      // # states
 constexpr int NU = ndof;        // # controls
-constexpr int NP = 3;          // # parameters, 1) E, 2) poisson, 3) method to compute pressures
-constexpr int NR = ndof+6+6;    // # residual torques + # GRFs + # GRMs
+constexpr int NP = 2;          // # parameters, 1) E, 2) poisson, 3) method to compute pressures
+constexpr int NR = ndof+3+3;    // # residual torques + # GRFs + # GRMs
 
-constexpr int numpairs = 5852; // all faces of the sphere
-constexpr int nfacesSphere = 5852;
+constexpr int numpairs = 800; // all faces of the sphere
+constexpr int nfacesSphere = 800;
 //constexpr int nfacesFem = 188;
 constexpr const char radForPairs[] = "05"; // 1 is 1 cm, 05 is 0.5 cm
 constexpr char* multiplier_method = "cylinders"; // multiplier method: "cylinders" or "spheres"
@@ -228,10 +228,10 @@ std::vector<Vec3> ReadDataDoublex3columns(std::string filename) {
     return out_csv;
 }
 
-Mat33 R_aux(Vec3 knee_trans, Vec3 knee_rot) {
-    Recorder psi = knee_rot[0];
-    Recorder theta = knee_rot[1];
-    Recorder phi = knee_rot[2];
+Mat33 R_aux(Vec3 sphere_trans, Vec3 sphere_rot) {
+    Recorder psi = sphere_rot[0];
+    Recorder theta = sphere_rot[1];
+    Recorder phi = sphere_rot[2];
 
     Mat33 R1(0);
     R1.set(0, 0, cos(psi));
@@ -268,31 +268,39 @@ Mat33 R_aux(Vec3 knee_trans, Vec3 knee_rot) {
     return R;
 }
 
-Mat44 ftransf_function(Vec3 knee_trans, Vec3 knee_rot) {
+Mat44 ftransf_function(Vec3 sphere_trans, Vec3 sphere_rot) {
 
-    Mat33 R = R_aux(knee_trans, knee_rot);
+    Mat33 R = R_aux(sphere_trans, sphere_rot);
     
-    Vec3 aux = R*(-knee_trans);
+    /*Vec3 aux = R*(-sphere_trans);*/
     
-    Mat44 Rtrans0042(1);
-    Rtrans0042.set(1, 3, 0.042);
+    //Mat44 Rtrans0042(1);
+    //Rtrans0042.set(1, 3, 0.042);
         
-    Mat44 Rtranstib_4x4(1);
-    Rtranstib_4x4.set(0, 3, aux[0]);
-    Rtranstib_4x4.set(1, 3, aux[1]);
-    Rtranstib_4x4.set(2, 3, aux[2]);
+    //Mat44 Rtranstib_4x4(1);
+    //Rtranstib_4x4.set(0, 3, aux[0]);
+    //Rtranstib_4x4.set(1, 3, aux[1]);
+    //Rtranstib_4x4.set(2, 3, aux[2]);
 
-    std::cout << Rtranstib_4x4 << std::endl;
+    //std::cout << Rtranstib_4x4 << std::endl;
 
     Mat44 R_rot(1);
+    R_rot.setToZero();
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
             R_rot.set(i, j, R[i][j]);
         }
     }
+    R_rot.set(3, 3, 1.0);
+    R_rot.set(0, 3, sphere_trans[0]);
+    R_rot.set(1, 3, sphere_trans[1]);
+    R_rot.set(2, 3, sphere_trans[2]);
+    //Rtranstib_4x4.set(1, 3, aux[1]);
+    //Rtranstib_4x4.set(2, 3, aux[2]);
 
-    Mat44 R_tib = Rtranstib_4x4*Rtrans0042*R_rot;
-    return R_tib;
+    std::cout << R_rot << std::endl;
+    //Mat44 R_tib = Rtranstib_4x4*R_rot;
+    return R_rot;
 }
 
 Real CheckContact(Real overlap) {
@@ -378,10 +386,11 @@ void CalculateIntersection(Vector_<Vec3> sphere_Points, Vec3& d) {
     Vec3 Csphere(0.0);
     // mean point of the tib face
     for (int i = 0; i < 3; i++) {
-        Csphere = mean(Vec3(sphere_Points[0][i], sphere_Points[1][i], sphere_Points[2][i]));
+        Csphere[i] = mean(Vec3(sphere_Points[0][i], sphere_Points[1][i], sphere_Points[2][i]));
+        std::cout << Csphere << std::endl;
     }
 
-    d = Csphere[1];
+    d = Csphere;
 
 }
 
@@ -393,15 +402,20 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
     std::cout << mults.size() << std::endl;
     std::cout << mults << std::endl;*/
     for (int i = 0; i < d_v.size(); i++) {
-        proj[i] = dot(d_v[i], nt_v[i]); // projection of distance between tibial and femoral faces to the normal of tibial face
+        //proj[i] = dot(d_v[i], nt_v[i]); // projection of distance between tibial and femoral faces to the normal of tibial face
+        proj[i] = dot(d_v[i], Vec3(0, 1, 0));
         pen[i] = -proj[i]; // pen is for penetration
         //pen[i] = -proj[i]; // pen is for penetration
     }
     Real k = 1e4;
-    std::cout << "proj" << proj << std::endl;
+    std::cout << "proj[0]" << proj[0] << std::endl;
+    std::cout << "pen[0]" << pen[0] << std::endl;
+    std::cout << "nt_v[0]" << nt_v[0] << std::endl;
+    std::cout << "d_v[0]=" << d_v[0] << std::endl;
+    /*std::cout << "proj" << proj << std::endl;
     std::cout << "pen" << pen << std::endl;
     std::cout << "k*pen" << k*pen << std::endl;
-    std::cout << "exp(k*pen))" << exp(k * pen) << std::endl;
+    std::cout << "exp(k*pen))" << exp(k * pen) << std::endl;*/
 
     //maxpen = (log(sum(exp(k*pen))+1e-16) / k); //version logSum
     maxpen = (log((1.0/pen.size())*sum(exp(k * pen))+1e-16) / k); //version mellowmax
@@ -420,7 +434,7 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
     std::cout << "true max pen=" << max(pen) << std::endl;
     std::cout << "nt_v=" << nt_v << std::endl;
     //maxpen = max(pen);
-    nt_l = nt_v[0];
+    nt_l = Vec3(0,-1, 0);
 }
 
 Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
@@ -431,13 +445,13 @@ Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
 
     Real p = p_init*(1 + tanh(k*pen)) / 2;
 
-    std::cout << "pen" << pen << std::endl;
-    std::cout << "p" << p << std::endl;
+    std::cout << "pen=" << pen << std::endl;
+    std::cout << "p=" << p << std::endl;
 
     return p;
 }
 
-void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::vector<int>> facesSphere, Vector_<Vec3> spherePoints_transf, std::vector<std::vector<int>> pairs_list, Vec3& SumForces, Vec3& SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vec3 sphere_trans, Vec3 sphere_rot, Vector_<Real> At, Vector_<Vec4> sphereplanes, Vector_<Vec3> cont_centers_Sphere, Vector_<Vec3> cont_centers_sphere_transf) {
+void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::vector<int>> facesSphere, Vector_<Vec3> spherePoints_transf, std::vector<std::vector<int>> pairs_list, Vec3& SumForces, Vec3& SumMoments, Real poisson, Real E, Real h, Vec3 originSphere_G, Vec3 sphere_trans, Vec3 sphere_rot, Vector_<Real> At, Vector_<Vec4> sphereplanes, Vector_<Vec3> cont_centers_Sphere, Vector_<Vec3> cont_centers_sphere_transf) {
     Vector_<Vec3> d(pairs_list.size());
     Vector_<Vec3> nt(pairs_list.size());
     Vector_<Vec3> force_s_l(0);
@@ -451,9 +465,9 @@ void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::
     //for (int i = 0; i < facesFem.size(); i++) {
     //    std::cout << "faces_fem[" << i << "]=" << facesFem.at(i).at(0) << " " << facesFem.at(i).at(1) << facesFem.at(i).at(2) << std::endl;
     //}
-    std::cout << "spherePoints" << std::endl;
+    std::cout << "spherePoints" << spherePoints[0] << std::endl;
     for (int i = 0; i < sphereplanes.size(); i++) {
-        std::cout << "sphereplanes[pairs_list[i][0]]=" << sphereplanes[pairs_list[i][0]] << std::endl;
+        std::cout << "sphereplanes[pairs_list[i][0]]=" << sphereplanes[pairs_list[i][1]-1] << std::endl;
     }
     if (strcmp(method_pen, "mesh") == 0) {
         for (int i = 0; i < pairs_list.size(); i++) {
@@ -471,17 +485,22 @@ void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::
                     fem_Points_ind[j] = femPoints[facesFem_ind[j] - 1];
                 }*/
 
-            std::vector<int> facesSphere_ind = facesSphere[pairs_list[i][0] - 1];
+            std::vector<int> facesSphere_ind = facesSphere[pairs_list[i][1] - 1];
             Vector_<Vec3> sphere_Points_ind(3);
             for (int j = 0; j < 3; j++) {
                 sphere_Points_ind[j] = spherePoints_transf[facesSphere_ind[j] - 1];
             }
+            std::cout << "facesSphere_ind=" << facesSphere_ind[0] << "-" << facesSphere_ind[1] << "-" << facesSphere_ind[2] << std::endl;
+            std::cout << "sphere_Points_ind[0]" << sphere_Points_ind[0] << std::endl;
+            std::cout << "spherePoints_transf=" << spherePoints_transf[0] << std::endl;
             CalculateIntersection(sphere_Points_ind, d_aux); // first element in pairs is tibia, second femur
         //}
+            std::cout << "sphere_Points_ind" << sphere_Points_ind << std::endl;
+            std::cout << "d_aux=" << d_aux << std::endl;
             d[i] = d_aux;
-            nt[i] = Vec3(sphereplanes[pairs_list[i][0] - 1][0], sphereplanes[pairs_list[i][0] - 1][1], sphereplanes[pairs_list[i][0] - 1][2]);
+            nt[i] = Vec3(sphereplanes[pairs_list[i][1] - 1][0], sphereplanes[pairs_list[i][1] - 1][1], sphereplanes[pairs_list[i][1] - 1][2]);
             /*std::cout << multipliers << std::endl;*/
-
+            /*std::cout << d << std::endl;*/
 
             if (i > 0) {
                 if ((pairs_list[i][0] == pairs_list[i - 1][0]) && (i < pairs_list.size() - 1)) {
@@ -496,22 +515,26 @@ void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::
                         d_aux_list[j] = d[i - l + j + 1];
                         nt_aux_list[j] = nt[i - l + j + 1];
                     }
+                    std::cout << "d_aux_list=" << d_aux_list << std::endl;
+                    std::cout << "i=" << i << std::endl;
+                    std::cout << "d=" << d << std::endl;
                     CalculateMaximumPenetration(d_aux_list, nt_aux_list, maxpen, nt_l);
-                    std::cout << maxpen << std::endl;
-                    std::cout << At[pairs_list[i][0] - 1] << std::endl;
+                    std::cout << "maxpen=" << maxpen << std::endl;
+                    std::cout << At[pairs_list[i][1] - 1] << std::endl;
                     std::cout << "nt_l=" << nt_l << std::endl;
                     Real p = CalculatePressure(poisson, E, maxpen, h);
+                    std::cout << "p=" << p << std::endl;
 
                     force_s_l.resizeKeep(k);
-                    force_s_l[k - 1] = p * At[pairs_list[i][0] - 1] * nt_l;
+                    force_s_l[k - 1] = p * At[pairs_list[i][1] - 1] * nt_l;
                     face_s.resizeKeep(k);
-                    face_s[k - 1] = pairs_list[i - 2][0];
+                    face_s[k - 1] = pairs_list[i - 2][1];
                     mom_O.resizeKeep(k);
-                    mom_O[k - 1] = cross(cont_centers_sphere_transf[pairs_list[i][0] - 1] - originTib_G, force_s_l[k - 1]);
-
+                    mom_O[k - 1] = cross(cont_centers_sphere_transf[pairs_list[i][1] - 1] - originSphere_G, force_s_l[k - 1]);
+                    std::cout << "force_s_l[k - 1])" << force_s_l[k - 1] << std::endl;
                     k = k + 1;
                     l = 2;
-                    while (k < pairs_list[i][0]) {
+                    while (k < pairs_list[i][1]) {
                         k = k + 1;
                     }
                     ///////////////
@@ -523,9 +546,10 @@ void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::
             }
 
         }
-        for (int i = 0; i < nt.size(); i++) {
+       /* for (int i = 0; i < nt.size(); i++) {
             std::cout << "nt=" << nt[i] << std::endl;
-        }
+        }*/
+        std::cout << "force_s_l=" << force_s_l << std::endl;
         Vec3 Sum_Force_G;
         Vec3 Sum_Moments_G;
         Sum_Force_G.setToZero();
@@ -559,22 +583,32 @@ void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::
 
 void ComputeKneeContactForces(Vec3 sphere_trans, Vec3 sphere_rot, Vec3 &SumForces, Vec3 &SumMoments, Real E, Real poisson) {
     //// Read Geometry Information
-    std::string root_folder = "C:\Gil\Docencia_UPC\TFGs_TFMs\AlbertMataro\DadesExpEsfera\3D_solid";
+    std::string root_folder = "C:/Gil/Docencia_UPC/TFGs_TFMs/AlbertMataro/DadesExpEsfera/3D_solid/";
     // Read Points
     std::string filename_spherePoints = root_folder + "spherePoints_" + std::to_string(nfacesSphere) + ".csv";
     std::vector<Vec3> spherePoints = ReadDataDoublex3columns(filename_spherePoints);
+    for (int i = 0; i < spherePoints.size(); i++) {
+        spherePoints[i] = spherePoints[i] / 1000 - 0.042; // to subtract the radius since the origin was not at the center
+    }
    
+    std::cout << filename_spherePoints << std::endl;
+
     // Read Faces
     std::string filename_facesSphere = root_folder + "facesSphere_" + std::to_string(nfacesSphere) + ".csv";
     std::vector<std::vector<int>> facesSphere = ReadDataIntx3columns(filename_facesSphere);
     
     // Read centers
-    std::string filename_conSphere = root_folder + "ConSphere_" + std::to_string(nfacesSphere) + ".csv";
+    std::string filename_conSphere = root_folder + "conSphere_" + std::to_string(nfacesSphere) + ".csv";
     std::vector<Vec4> conSphere = ReadDataDoublex4columns(filename_conSphere);
+    for (int i = 0; i < conSphere.size(); i++) {
+        conSphere[i] = conSphere[i] / 1000 ;
+        for (int j = 0; j < 3; j++) {
+            conSphere[j] = conSphere[j] - 0.042; // to subtract the radius since the origin was not at the center
+        }
+    }
   
     //Read pairs
     std::string filename_pairs = root_folder + "pairs_" + std::to_string(nfacesSphere) + ".csv";
-
 
     std::vector<std::vector<int>> pairs_list = ReadDataIntx2columns(filename_pairs);
     
@@ -593,7 +627,7 @@ void ComputeKneeContactForces(Vec3 sphere_trans, Vec3 sphere_rot, Vec3 &SumForce
 
     //test with numerical values
     std::cout << "sphere_trans=" << sphere_trans << std::endl;
-
+    std::cout << "sphere_rot=" << sphere_rot << std::endl;
     //// Apply transformations
     // Get matrix transformation of sphere with respect to ground
     Mat44 Mtransf_sphere = ftransf_function(sphere_trans, sphere_rot);
@@ -611,6 +645,9 @@ void ComputeKneeContactForces(Vec3 sphere_trans, Vec3 sphere_rot, Vec3 &SumForce
             spherePoints_transf[i][j] = spherePoints_transf_aux[j];
         }
     }
+    
+    std::cout << "spherePoints[0]=" << spherePoints[0] << std::endl;
+    std::cout << "spherePoints_transf[0]=" << spherePoints_transf[0] << std::endl;
     std::cout << conSphere.size() << std::endl;
     for (int i = 0; i < conSphere.size(); i++) { // is the size of conTib correct?
         cont_centers_sphere_aux = Mtransf_sphere * Vec4(conSphere[i][0], conSphere[i][1], conSphere[i][2], 1.0);
@@ -620,11 +657,11 @@ void ComputeKneeContactForces(Vec3 sphere_trans, Vec3 sphere_rot, Vec3 &SumForce
         }
     }
 
-    // Calculate origin of the tibia...
+    // Calculate origin of the sphere...
     Vec4 originSphere_G4 = Mtransf_sphere*Vec4(0, 0, 0, 1);
     Vec3 originSphere_G = Vec3(originSphere_G4[0], originSphere_G4[1], originSphere_G4[2]);
     // 
-
+    std::cout << "originSphere_G=" << originSphere_G << std::endl;
     // Calculate multipliers for all pairs at this instant, and areas of tibia faces
     //Vector_<Real> multipliers(pairs_list.size(), 0.0);
     Vector_<Real> At1(conSphere_r.size(), 0.0);
@@ -704,7 +741,7 @@ int F_generic(const T** arg, T** res) {
     /// Model
     model = new OpenSim::Model();
     /// Body specifications
-    sphere = new OpenSim::Body("sphere", 9.53459239861278, Vec3(-0.0672, 0, 0), Inertia(0.0832132493453181, 0.0705026541156487, 0.0469103262792837, 0, 0, 0));
+    sphere = new OpenSim::Body("sphere", 0.79, Vec3(0, 0, 0), Inertia(5.5742e-04, 5.5742e-04, 5.5742e-04, 0, 0, 0));
     
     /// Joints
     /// Ground-Sphere transform
@@ -740,6 +777,7 @@ int F_generic(const T** arg, T** res) {
 
     //CALL STATE INDEX MAPPING FUNCTION TO ACCOUNT FOR OPENSIM VS SIMBODY STATE ORDERS
     Array<std::string> stateVars = model->getStateVariableNames();					//Assign string array with the state variable names
+    std::cout << stateVars << std::endl;
     std::unordered_map<std::string, int> mapping = createSystemYIndexMap(*model);    //Call function
     for (int i = 0; i < mapping.size(); ++i) std::cout << mapping[stateVars[i]] << " " << stateVars[i] << " " << i << " OpenSim" << std::endl; //Loop through each state name and print to the cmd window the corresponding Simbody index and the name
 
@@ -753,6 +791,8 @@ int F_generic(const T** arg, T** res) {
     T up[NP]; /// choose model - parameters
     Vector QsUs(NX); /// joint positions (Qs) and velocities (Us) - states
     
+    
+
     // Assign inputs to model variables
     /// States
     for (int i = 0; i < NX; ++i) QsUs[i] = x[i];
@@ -765,7 +805,12 @@ int F_generic(const T** arg, T** res) {
 
     // Set state variables and realize
     model->setStateVariableValues(*state, QsUs);
+    
+    std::cout << "QsUs=" << QsUs[9] << std::endl;
+
     model->realizeVelocity(*state);
+
+    std::cout << "ty=" << model->getStateVariableValue(*state, "ground_sphere/sphere_ty/value") << std::endl;
 
     Vec3 sphere_trans = Vec3(model->getStateVariableValue(*state, "ground_sphere/sphere_tx/value"),
         model->getStateVariableValue(*state, "ground_sphere/sphere_ty/value"),
@@ -784,7 +829,7 @@ int F_generic(const T** arg, T** res) {
     
     Real E = up[0];
     Real poisson = up[1];
-    ComputeKneeContactForces(sphere_trans, sphere_rot, Cont_SumForces, Cont_SumMoments, E, poisson);
+     ComputeKneeContactForces(sphere_trans, sphere_rot, Cont_SumForces, Cont_SumMoments, E, poisson);
     Vec3 SphereCont_SumForces_onSphere_inG = -Cont_SumForces;
     Vec3 SphereCont_SumMoments_onSphere_inG = -Cont_SumMoments;
 
@@ -815,7 +860,8 @@ int F_generic(const T** arg, T** res) {
             model->getBodySet().get(i).getMassCenter(),
             model->getBodySet().get(i).getMass()*gravity, appliedBodyForces);
     }
-
+    std::cout << "sphere_trans= " << sphere_trans << std::endl;
+    std::cout << "SphereCont_SumForces_onSphere_inG= " << SphereCont_SumForces_onSphere_inG << std::endl;
     /// Add sphere contact forces to appliedBodyForces
     model->getMatterSubsystem().addInStationForce(*state, sphere->getMobilizedBodyIndex(), Vec3(0, 0, 0), SphereCont_SumForces_onSphere_inG, appliedBodyForces);
     model->getMatterSubsystem().addInBodyTorque(*state, sphere->getMobilizedBodyIndex(), SphereCont_SumMoments_onSphere_inG, appliedBodyForces);

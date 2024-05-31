@@ -255,7 +255,7 @@ int F_generic(const T** arg, T** res) {
 	appliedBodyForces.setToZero();
 	/// Set gravity
 	Vec3 gravity(0);
-	gravity[1] = -9.81;
+	gravity[2] = -9.81;
 	
 	/// Add to model
 	for (int i = 0; i < model->getBodySet().getSize(); ++i) {
