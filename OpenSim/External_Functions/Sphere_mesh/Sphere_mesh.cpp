@@ -862,6 +862,8 @@ int F_generic(const T** arg, T** res) {
     }
     std::cout << "sphere_trans= " << sphere_trans << std::endl;
     std::cout << "SphereCont_SumForces_onSphere_inG= " << SphereCont_SumForces_onSphere_inG << std::endl;
+    std::cout << "weight=" << model->getBodySet().get("sphere").getMass() * gravity << std::endl;
+    std::cout << "appliedBodyForces=" << appliedBodyForces << std::endl;
     /// Add sphere contact forces to appliedBodyForces
     model->getMatterSubsystem().addInStationForce(*state, sphere->getMobilizedBodyIndex(), Vec3(0, 0, 0), SphereCont_SumForces_onSphere_inG, appliedBodyForces);
     model->getMatterSubsystem().addInBodyTorque(*state, sphere->getMobilizedBodyIndex(), SphereCont_SumMoments_onSphere_inG, appliedBodyForces);
