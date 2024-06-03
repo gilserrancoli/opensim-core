@@ -432,18 +432,22 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
     std::cout << "maxpen=" << maxpen << std::endl;
     std::cout << "1.0 / pen.size()" << 1.0/pen.size() << std::endl;
     std::cout << "true max pen=" << max(pen) << std::endl;
-    std::cout << "nt_v=" << nt_v << std::endl;
+    //std::cout << "nt_v=" << nt_v << std::endl;
     //maxpen = max(pen);
-    nt_l = Vec3(0,-1, 0);
+    nt_l = Vec3(0,1, 0);
 }
 
 Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
-    Real k = 5e5;
+    Real k = 1e3; // initially 5e5
     Real pen = d;
-
+   
     Real p_init = ((1 - poisson)*E / ((1 + poisson)*(1 - 2 * poisson)))*pen / h;
+    Real s = 0.5 + 0.5 * tanh(k * pen);
 
-    Real p = p_init*(1 + tanh(k*pen)) / 2;
+
+    //Real p = p_init*(1 + tanh(k*pen)) / 2;
+    Real f = 3.67 * (pow(pen, 2.0)) + 4.92 * pen;
+    Real p = s * p_init + (1 - s) * f;
 
     std::cout << "pen=" << pen << std::endl;
     std::cout << "p=" << p << std::endl;
@@ -515,9 +519,9 @@ void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::
                         d_aux_list[j] = d[i - l + j + 1];
                         nt_aux_list[j] = nt[i - l + j + 1];
                     }
-                    std::cout << "d_aux_list=" << d_aux_list << std::endl;
+                    //std::cout << "d_aux_list=" << d_aux_list << std::endl;
                     std::cout << "i=" << i << std::endl;
-                    std::cout << "d=" << d << std::endl;
+                    //std::cout << "d=" << d << std::endl;
                     CalculateMaximumPenetration(d_aux_list, nt_aux_list, maxpen, nt_l);
                     std::cout << "maxpen=" << maxpen << std::endl;
                     std::cout << At[pairs_list[i][1] - 1] << std::endl;
@@ -829,9 +833,10 @@ int F_generic(const T** arg, T** res) {
     
     Real E = up[0];
     Real poisson = up[1];
-     ComputeKneeContactForces(sphere_trans, sphere_rot, Cont_SumForces, Cont_SumMoments, E, poisson);
-    Vec3 SphereCont_SumForces_onSphere_inG = -Cont_SumForces;
-    Vec3 SphereCont_SumMoments_onSphere_inG = -Cont_SumMoments;
+
+    ComputeKneeContactForces(sphere_trans, sphere_rot, Cont_SumForces, Cont_SumMoments, E, poisson);
+    Vec3 SphereCont_SumForces_onSphere_inG = Cont_SumForces;
+    Vec3 SphereCont_SumMoments_onSphere_inG = Cont_SumMoments;
 
    /* Vec3 SphereCont_SumForces_onSphere_inG=sphere->expressVectorInGround(*state, KneeCont_SumForces_onTibialTray_inTibialTrayFrame);
     Vec3 KneeCont_SumMoments_onTibialTray_inG = tibial_tray->expressVectorInGround(*state, KneeCont_SumMoments_onTibialTray_inTibialTrayFrame);*/
@@ -867,6 +872,7 @@ int F_generic(const T** arg, T** res) {
     /// Add sphere contact forces to appliedBodyForces
     model->getMatterSubsystem().addInStationForce(*state, sphere->getMobilizedBodyIndex(), Vec3(0, 0, 0), SphereCont_SumForces_onSphere_inG, appliedBodyForces);
     model->getMatterSubsystem().addInBodyTorque(*state, sphere->getMobilizedBodyIndex(), SphereCont_SumMoments_onSphere_inG, appliedBodyForces);
+    std::cout << "appliedBodyForces=" << appliedBodyForces << std::endl;
 
    /* Vector_<SpatialVec> aaa;
     aaa.resize(nbodies);
