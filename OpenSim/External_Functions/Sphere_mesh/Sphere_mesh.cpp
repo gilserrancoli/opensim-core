@@ -56,6 +56,7 @@ constexpr int nfacesSphere = 800;
 constexpr const char radForPairs[] = "05"; // 1 is 1 cm, 05 is 0.5 cm
 constexpr char* multiplier_method = "cylinders"; // multiplier method: "cylinders" or "spheres"
 constexpr char* method_pen = "mesh"; // "mesh", "centerdist"
+constexpr char* mod = "HC"; //HC or EF
 
 // Helper function value
 template<typename T>
@@ -438,7 +439,7 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
 }
 
 Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
-    Real k = 1e3; // initially 5e5
+    Real k = 5e5; // initially 5e5
     Real pen = d;
    
     Real p_init = ((1 - poisson)*E / ((1 + poisson)*(1 - 2 * poisson)))*pen / h;
@@ -446,7 +447,7 @@ Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
 
 
     //Real p = p_init*(1 + tanh(k*pen)) / 2;
-    Real f = 3.67 * (pow(pen, 2.0)) + 4.92 * pen;
+    Real f = 1.7524e5 * (pow(pen, 3.0)) + 5.8571e5 *pow(pen,2.0)+ 5.3548e5 * pen;
     Real p = s * p_init + (1 - s) * f;
 
     std::cout << "pen=" << pen << std::endl;
@@ -455,7 +456,7 @@ Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
     return p;
 }
 
-void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::vector<int>> facesSphere, Vector_<Vec3> spherePoints_transf, std::vector<std::vector<int>> pairs_list, Vec3& SumForces, Vec3& SumMoments, Real poisson, Real E, Real h, Vec3 originSphere_G, Vec3 sphere_trans, Vec3 sphere_rot, Vector_<Real> At, Vector_<Vec4> sphereplanes, Vector_<Vec3> cont_centers_Sphere, Vector_<Vec3> cont_centers_sphere_transf) {
+void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::vector<int>> facesSphere, Vector_<Vec3> spherePoints_transf, std::vector<std::vector<int>> pairs_list, Vec3& SumForces, Vec3& SumMoments, Real poisson, Real E, Real h, Vec3 originSphere_G, Vec3 sphere_trans, Vec3 sphere_vel, Vec3 sphere_rot, Vector_<Real> At, Vector_<Vec4> sphereplanes, Vector_<Vec3> cont_centers_Sphere, Vector_<Vec3> cont_centers_sphere_transf) {
     Vector_<Vec3> d(pairs_list.size());
     Vector_<Vec3> nt(pairs_list.size());
     Vector_<Vec3> force_s_l(0);
@@ -526,11 +527,44 @@ void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::
                     std::cout << "maxpen=" << maxpen << std::endl;
                     std::cout << At[pairs_list[i][1] - 1] << std::endl;
                     std::cout << "nt_l=" << nt_l << std::endl;
-                    Real p = CalculatePressure(poisson, E, maxpen, h);
-                    std::cout << "p=" << p << std::endl;
+
+                    /*E = 1e9;
+                    poisson = 0.45;
+                    maxpen = -0.01;*/
 
                     force_s_l.resizeKeep(k);
-                    force_s_l[k - 1] = p * At[pairs_list[i][1] - 1] * nt_l;
+                    std::cout << mod << std::endl;
+
+                    if (strcmp(mod, "HC")==0){
+                        const Real vt = 0.2;
+                        const Real us = 0.8;
+                        const Real ud = 0.8;
+                        const Real uv = 0.5;
+                        const Real bd = 300;
+                        const Real bv = 50;
+                        // Calculate the Hertz force.
+                        const Real k2 = (1. / 2.) * pow(E, 2. / 3.); //E should be "stiffness" here
+                        const Real fh_pos = (4. / 3.) * k2 * sqrt(0.041 * k2) *
+                            pow(sqrt(maxpen * maxpen + 1e-16), 3. / 2.);
+                        const Real fh_smooth = fh_pos * (1. / 2. + (1. / 2.) * tanh(bd * maxpen));
+
+                        Real vpen = -sphere_vel[1];
+                        std::cout << sphere_vel << std::endl;
+
+                        const Real c = 1.5; //dissipation
+                        const Real fhc_pos = fh_smooth * (1. + (3. / 2.) * c * vpen);
+                        const Real fhc_smooth = fhc_pos * (1. / 2. + (1. / 2.) * tanh(bv * (vpen + (2. / (3. * c)))));
+
+                        force_s_l[k - 1] = fhc_smooth * nt_l;
+
+                    }
+                    else if (strcmp(mod, "EF") == 0) {
+                            Real p = CalculatePressure(poisson, E, maxpen, h);
+                        std::cout << "p=" << p << std::endl;
+
+                        
+                        force_s_l[k - 1] = p * At[pairs_list[i][1] - 1] * nt_l;
+                    }
                     face_s.resizeKeep(k);
                     face_s[k - 1] = pairs_list[i - 2][1];
                     mom_O.resizeKeep(k);
@@ -585,7 +619,7 @@ void CalculateForceCompartment(std::vector<Vec3> spherePoints, std::vector<std::
 
 }
 
-void ComputeKneeContactForces(Vec3 sphere_trans, Vec3 sphere_rot, Vec3 &SumForces, Vec3 &SumMoments, Real E, Real poisson) {
+void ComputeKneeContactForces(Vec3 sphere_trans, Vec3 sphere_vel, Vec3 sphere_rot, Vec3 &SumForces, Vec3 &SumMoments, Real E, Real poisson) {
     //// Read Geometry Information
     std::string root_folder = "C:/Gil/Docencia_UPC/TFGs_TFMs/AlbertMataro/DadesExpEsfera/3D_solid/";
     // Read Points
@@ -720,7 +754,7 @@ void ComputeKneeContactForces(Vec3 sphere_trans, Vec3 sphere_rot, Vec3 &SumForce
     SumMoments.setToZero();
 
 
-    CalculateForceCompartment(spherePoints, facesSphere, spherePoints_transf, pairs_list, SumForces, SumMoments, poisson, E, h, originSphere_G, sphere_trans, sphere_rot, At1, sphereplanes, cont_centers_Sphere, cont_centers_sphere_transf);
+    CalculateForceCompartment(spherePoints, facesSphere, spherePoints_transf, pairs_list, SumForces, SumMoments, poisson, E, h, originSphere_G, sphere_trans, sphere_vel, sphere_rot, At1, sphereplanes, cont_centers_Sphere, cont_centers_sphere_transf);
     std::cout << "forces=" << SumForces << " moments=" << SumMoments << std::endl;
  
     //SumForces_vert_Med = SumForces1[1]; // tibial part 1 is medial
@@ -823,6 +857,17 @@ int F_generic(const T** arg, T** res) {
         model->getStateVariableValue(*state, "ground_sphere/sphere_list/value"),
         model->getStateVariableValue(*state, "ground_sphere/sphere_rotation/value"));
     
+    Vec3 sphere_vel = Vec3(model->getStateVariableValue(*state, "ground_sphere/sphere_tx/speed"),
+        model->getStateVariableValue(*state, "ground_sphere/sphere_ty/speed"),
+        model->getStateVariableValue(*state, "ground_sphere/sphere_tz/speed"));
+    Vec3 sphere_rot_vel = Vec3(model->getStateVariableValue(*state, "ground_sphere/sphere_tilt/speed"),
+        model->getStateVariableValue(*state, "ground_sphere/sphere_list/speed"),
+        model->getStateVariableValue(*state, "ground_sphere/sphere_rotation/speed"));
+
+    std::cout << "sphere_vel " << sphere_vel << std::endl;
+    std::cout << "sphere_rot_vel " << sphere_rot_vel << std::endl;
+    std::cout << "QsUs " << QsUs << std::endl;
+
     // Compute Resulting contact wrench at the center of the sphere
     Vec3 Cont_SumForces;
     Vec3 Cont_SumMoments;
@@ -834,7 +879,7 @@ int F_generic(const T** arg, T** res) {
     Real E = up[0];
     Real poisson = up[1];
 
-    ComputeKneeContactForces(sphere_trans, sphere_rot, Cont_SumForces, Cont_SumMoments, E, poisson);
+    ComputeKneeContactForces(sphere_trans, sphere_vel, sphere_rot, Cont_SumForces, Cont_SumMoments, E, poisson);
     Vec3 SphereCont_SumForces_onSphere_inG = Cont_SumForces;
     Vec3 SphereCont_SumMoments_onSphere_inG = Cont_SumMoments;
 
