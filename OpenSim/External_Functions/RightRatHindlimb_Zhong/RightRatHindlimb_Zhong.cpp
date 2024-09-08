@@ -120,12 +120,12 @@ int F_generic(const T** arg, T** res) {
             Inertia(3.13876e-07, 3.13876e-07, 3.13876e-07, 0, 0, 0));
 	pelvis = new OpenSim::Body("pelvis", 0.002091, Vec3(0),
 			Inertia(2.61564e-07, 2.28868e-07, 2.28868e-07, 0, 0, 0));
-	femur = new OpenSim::Body("femur", 0.002091, Vec3(0, -0.020531507128701894,0),
-            Inertia(1.67929e-07, 2.59149e-08, 1.67929e-07, 0, 0, 0));
-	tibia = new OpenSim::Body("tibia", 0.002091, Vec3(0, 0.011534128561529224,0),
-            Inertia(1.74548e-07, 2.69364e-08, 1.74548e-07, 0, 0, 0));
-	foot = new OpenSim::Body("foot", 0.002091, Vec3(0.009568287380656364, -0.0068344909861831173, 0),
-		Inertia(3.11879e-08, 2.02097e-07, 2.02097e-07, 0,0, 0));
+	femur = new OpenSim::Body("femur", 0.01351, Vec3(0, -0.014936,0),
+            Inertia(1.086e-06, 2.7e-08, 1.086e-06, 0, 0, 0));
+	tibia = new OpenSim::Body("tibia", 0.00538, Vec3(0, 0.0152275,0),
+            Inertia(8.204e-07, 1.08e-08, 8.204e-07, 0, 0, 0));
+	foot = new OpenSim::Body("foot", 0.00193, Vec3(0.00764643, -0.00546174, 0),
+		Inertia(1.095e-08, 2.85e-08, 3.727e-08, -1.52e-08, 0, 0));
 	
 
     /// Joint specifications
