@@ -27,6 +27,13 @@
 #include <vector>
 #include <fstream>
 
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <unistd.h>
+    #include <limits.h>
+#endif
+
 
 using namespace SimTK;
 using namespace OpenSim;
@@ -51,11 +58,22 @@ constexpr int NU = ndof;        // # controls
 constexpr int NP = 54;          // # parameters
 constexpr int NR = ndof+6+6+2;    // # residual torques + # GRFs + # GRMs
 
-constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
-constexpr int nfacesTib = 49;
+//constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
+constexpr int nfacesTib = 100; //before 49
 constexpr int nfacesFem = 188;
-constexpr const char radForPairs[] = "05"; // 1 is 1 cm, 05 is 0.5 cm
+constexpr const char radForPairs[] = "1"; // 1 is 1 cm, 05 is 0.5 cm
 constexpr char* multiplier_method = "cylinders"; // multiplier method: "cylinders" or "spheres"
+
+std::string getHostname() {
+    char hostname[256];
+#ifdef _WIN32
+    DWORD size = sizeof(hostname);
+    GetComputerNameA(hostname, &size);
+#else
+    gethostname(hostname, sizeof(hostname));
+#endif
+    return std::string(hostname);
+}
 
 // Helper function value
 template<typename T>
@@ -544,7 +562,16 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
 
 void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, Vec3 &SumMoments, Real &SumForces_vert_Lat, Real &SumForces_vert_Med) {
     //// Read Geometry Information
-    std::string root_folder = "C:/Gil/MeshesInAD/contactsKneeProsthesis/";
+    std::string hostname = getHostname();
+    std::string root_folder;
+    if (hostname == "DESKTOP-U8CF7T5") {
+        root_folder = "C:/Gil/MeshesInAD/contactsKneeProsthesis/";
+    }
+    else
+    {
+        root_folder = "";
+    };
+
     // Read Points
     std::string filename_femPoints = root_folder + "femPoints_" + std::to_string(nfacesFem) + ".csv";
     std::vector<Vec3> femPoints = ReadDataDoublex3columns(filename_femPoints);

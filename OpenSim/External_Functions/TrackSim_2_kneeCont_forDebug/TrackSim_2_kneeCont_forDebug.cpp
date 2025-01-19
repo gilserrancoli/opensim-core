@@ -27,6 +27,12 @@
 #include <vector>
 #include <fstream>
 
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <unistd.h>
+    #include <limits.h>
+#endif
 
 using namespace SimTK;
 using namespace OpenSim;
@@ -49,13 +55,24 @@ constexpr int ndofr = 36;       // # degrees of freedom (including locked)
 constexpr int NX = ndof*2;      // # states
 constexpr int NU = ndof;        // # controls
 constexpr int NP = 54;          // # parameters
-constexpr int NR = ndof+6+6+2+49;    // # residual torques + # GRFs + # GRMs + # KCF + # knee pressures
 
 constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
-constexpr int nfacesTib = 49;
+constexpr int nfacesTib = 100; //before 49
 constexpr int nfacesFem = 188;
-constexpr const char radForPairs[] = "05"; // 1 is 1 cm, 05 is 0.5 cm
+constexpr const char radForPairs[] = "1"; // 1 is 1 cm, 05 is 0.5 cm
 constexpr char* multiplier_method = "cylinders"; // multiplier method: "cylinders" or "spheres"
+constexpr int NR = ndof + 6 + 6 + 2 + nfacesTib;    // # residual torques + # GRFs + # GRMs + # KCF + # knee pressures
+
+std::string getHostname() {
+    char hostname[256];
+#ifdef _WIN32
+    DWORD size = sizeof(hostname);
+    GetComputerNameA(hostname, &size);
+#else
+    gethostname(hostname, sizeof(hostname));
+#endif
+    return std::string(hostname);
+}
 
 // Helper function value
 template<typename T>
@@ -294,6 +311,10 @@ Mat44 ftransf_function(Vec3 knee_trans, Vec3 knee_rot) {
     }
 
     Mat44 R_tib = Rtranstib_4x4*Rtrans0042*R_rot;
+
+    std::cout << "R_tib=" << R_tib << std::endl;
+    std::cout << "knee_trans=" << knee_trans << std::endl;
+    std::cout << "knee_rot=" << knee_rot << std::endl;
     return R_tib;
 }
 
@@ -401,12 +422,19 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
     //for (int i = 0; i < facesFem.size(); i++) {
     //    std::cout << "faces_fem[" << i << "]=" << facesFem.at(i).at(0) << " " << facesFem.at(i).at(1) << facesFem.at(i).at(2) << std::endl;
     //}
+    std::cout << pairs_list.size() << std::endl;
 
     for (int i = 0; i < pairs_list.size(); i++) {
         Vec3 d_aux;
 
         if (strcmp(multiplier_method, "cylinders") == 0) {
             CalculateIntersection_cylinders(cont_centers_tib_transf[pairs_list[i][0] - 1], cont_centers_Fem[pairs_list[i][1] - 1], d_aux);
+            std::cout << "i=" << i << std::endl;
+            std::cout << "cont_centers_tib_transf[pairs_list[i][0] - 1]=" << cont_centers_tib_transf[pairs_list[i][0] - 1] <<  std::endl;
+            std::cout << "cont_centers_Fem[pairs_list[i][1] - 1]=" << cont_centers_Fem[pairs_list[i][1] - 1] << std::endl;
+            std::cout << std::endl;
+
+
         }
         else if (strcmp(multiplier_method, "spheres") == 0) {
             std::cout << pairs_list[i][1] - 1 << std::endl;
@@ -510,7 +538,16 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
 
 void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, Vec3 &SumMoments, Real &SumForces_vert_Lat, Real &SumForces_vert_Med, Vector &pvec1, Vector &pvec2) {
     //// Read Geometry Information
-    std::string root_folder = "C:/Gil/MeshesInAD/contactsKneeProsthesis/";
+    std::string hostname = getHostname();
+    std::string root_folder;
+    if (hostname == "DESKTOP-U8CF7T5") {
+        root_folder = "C:/Gil/MeshesInAD/contactsKneeProsthesis/";
+    }
+    else
+    {
+        root_folder = "";
+    };
+
     // Read Points
     std::string filename_femPoints = root_folder + "femPoints_" + std::to_string(nfacesFem) + ".csv";
     std::vector<Vec3> femPoints = ReadDataDoublex3columns(filename_femPoints);
@@ -562,6 +599,8 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     // Get matrix transformation of tibia with respect to the femur
     Mat44 Mtransf_tib = ftransf_function(knee_trans, knee_rot);
     std::cout << "Mtransf_tib=" << Mtransf_tib << std::endl;
+    std::cout << "knee_trans"<< knee_trans << std::endl;
+    std::cout << "knee_rot" << knee_rot << std::endl;
 
     // Apply the transformation to all points of the tibia
     Vec4 tibPoints_transf_aux(1);
@@ -596,7 +635,7 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     }
 
     std::cout << "tibPoints[0]= " << tibPoints[0] << std::endl;
-
+    std::cout << "cont_centers_tib_aux1[0]" << cont_centers_tib_transf1[0] << std::endl;
     // Calculate origin of the tibia...
     Vec4 originTib_G4 = Mtransf_tib*Vec4(0, 0, 0, 1);
     Vec3 originTib_G = Vec3(originTib_G4[0], originTib_G4[1], originTib_G4[2]);
@@ -610,6 +649,8 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     Vector_<Real> At2(conTib1_r.size(), 0.0);
     Vector_<Vec4> tibplanes1(conTib1_r.size(), Vec4(0.0));
     Vector_<Vec4> tibplanes2(conTib2_r.size(), Vec4(0.0));
+    std::cout << conTib1_r.size() << std::endl;
+    std::cout << conTib2_r.size() << std::endl;
     for (int i = 0; i < conTib1_r.size(); i++) {
         Vec3 edge1_t = tibPoints_transf[facesTib1[i][1] - 1] - tibPoints_transf[facesTib1[i][0] - 1];
         Vec3 edge2_t = tibPoints_transf[facesTib1[i][2] - 1] - tibPoints_transf[facesTib1[i][1] - 1];
@@ -661,6 +702,7 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         multipliers1 = GenerateMultList_cylinders(pairs1_list, cont_centers_Fem, cont_centers_tib_transf1, tibplanes1, femplanes, conFem_r);
         multipliers2 = GenerateMultList_cylinders(pairs2_list, cont_centers_Fem, cont_centers_tib_transf2, tibplanes2, femplanes, conFem_r);
 
+       
     }
     else if (strcmp(multiplier_method, "spheres") == 0) {
         /*for (int i = 0; i < conTib1_r.size(); i++) {
@@ -678,7 +720,7 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         multipliers1 = GenerateMultList_spheres(pairs1_list, cont_centers_Fem, cont_centers_tib_transf1, conFem_r, conTib1_r);
         multipliers2 = GenerateMultList_spheres(pairs2_list, cont_centers_Fem, cont_centers_tib_transf2, conFem_r, conTib2_r);
     }
-
+    std::cout << "multipliers1=" << multipliers1 << std::endl;
     Real poisson =0.46;
     Real E = 400 * 1e6;
     Real h = 0.006;
@@ -1044,7 +1086,10 @@ int F_generic(const T** arg, T** res) {
     Vec3 knee_rot_0 = Vec3(model->getStateVariableValue(*state, "knee_r/knee_angle_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_adduction_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_rotation_r/value"));
-    
+
+   /* knee_trans = Vec3(-0.000032575542917, 0.043940648715272, 0.000056100835213);
+    knee_rot_0 = Vec3(-0.353766313961517, -0.011783443083743, 0.000344962493082);*/
+
     //model->setStateVariableValue(*state, "knee_r/knee_tx_r/value", 0.009462599065706);
     //std::cout << "knee_tx= " << model->getStateVariableValue(*state, "knee_r/knee_tx_r/value") << std::endl;
     
@@ -1062,10 +1107,19 @@ int F_generic(const T** arg, T** res) {
     Real SumForces_vert_Lat;
     Real SumForces_vert_Med;
     
-
-    Vector pvec1(26);
+    int nfacestib1 = 0;
+    int nfacestib2 = 0;
+    if (nfacesTib == 49) {
+        nfacestib1 = 26;
+        nfacestib2 = 23;
+    }
+    else if (nfacesTib == 100) {
+        nfacestib1 = 51;
+        nfacestib2 = 49;
+    }
+    Vector pvec1(nfacestib1);
     pvec1.setToZero();
-    Vector pvec2(23);
+    Vector pvec2(nfacestib2);
     pvec2.setToZero();
     ComputeKneeContactForces(knee_trans, knee_rot, KneeCont_SumForces, KneeCont_SumMoments, SumForces_vert_Lat, SumForces_vert_Med, pvec1, pvec2);
     std::cout << "pvec1= " << pvec1 << std::endl;
@@ -1346,11 +1400,13 @@ int F_generic(const T** arg, T** res) {
 
     std::cout << "pvec1= " << pvec1 << std::endl;
     /// Knee pressures
-    for (int i = 0; i < 26; ++i) {
+    
+    for (int i = 0; i < nfacestib1; ++i) {
         res[0][i + ndof + nc + nc + nc + nc + 2] = value<T>(pvec1[i]);
     }
-    for (int i = 0; i < 23; ++i) {
-        res[0][i + ndof + nc + nc + nc + nc + 2 + 26] = value<T>(pvec2[i]);
+    std::cout << "nfacestib2=" << nfacestib2 << std::endl;
+    for (int i = 0; i < nfacestib2; ++i) {
+        res[0][i + ndof + nc + nc + nc + nc + 2 + nfacestib1] = value<T>(pvec2[i]);
     }
     return 0;
 }

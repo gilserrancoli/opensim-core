@@ -155,6 +155,8 @@ int F_generic(const T** arg, T** res) {
 	State* state;
 	state = new State(model->initSystem());
 
+	std::cout << model->getStateVariableNames() << std::endl;
+
 	// Read inputs
 	std::vector<T> x(arg[0], arg[0] + NX);
 	std::vector<T> u(arg[1], arg[1] + NU);
