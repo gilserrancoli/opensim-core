@@ -1,5 +1,5 @@
 /*  This code describes the OpenSim model and the skeleton dynamics
-    Author: Antoine Falisse
+    Author: Antoine Falisse, modified by Gil Serrancolí
     Contributor: Joris Gillis, Gil Serrancoli, Chris Dembia
 */
 #include <OpenSim/Simulation/Model/Model.h>
@@ -34,6 +34,7 @@
     #include <limits.h>
 #endif
 
+
 using namespace SimTK;
 using namespace OpenSim;
 
@@ -47,7 +48,7 @@ using namespace OpenSim;
 
 // Inputs/outputs of function F
 /// number of vectors in inputs/outputs of function F
-constexpr int n_in = 3;
+constexpr int n_in = 2;
 constexpr int n_out = 1;
 /// number of elements in input/output vectors of function F
 constexpr int ndof = 34;        // # degrees of freedom (excluding locked)
@@ -55,13 +56,13 @@ constexpr int ndofr = 36;       // # degrees of freedom (including locked)
 constexpr int NX = ndof*2;      // # states
 constexpr int NU = ndof;        // # controls
 constexpr int NP = 54;          // # parameters
+constexpr int NR = ndof+2+16;    // # residual torques + med and lat forces + locations
 
 //constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
-constexpr int nfacesTib = 100; //before 49
+constexpr int nfacesTib = 49; //before 49
 constexpr int nfacesFem = 171;
-constexpr const char radForPairs[] = "1"; // 1 is 1 cm, 05 is 0.5 cm
+constexpr const char radForPairs[] = "05"; // 1 is 1 cm, 05 is 0.5 cm
 constexpr char* multiplier_method = "cylinders"; // multiplier method: "cylinders" or "spheres"
-constexpr int NR = ndof + 6 + 6 + 2 + nfacesTib;    // # residual torques + # GRFs + # GRMs + # KCF + # knee pressures
 
 std::string getHostname() {
     char hostname[256];
@@ -193,8 +194,7 @@ std::vector<std::vector<int>> ReadDataIntx2columns(std::string filename) {
             out_csv.push_back(row); // Add the row to the out_csv vector
         }
         file.close();
-    }
-    else {
+        }else {
         std::cerr << "Error opening file." << std::endl;
     }
     return out_csv;
@@ -202,13 +202,13 @@ std::vector<std::vector<int>> ReadDataIntx2columns(std::string filename) {
 
 std::vector<Vec3> ReadDataDoublex3columns(std::string filename) {
 
-
+    
     std::ifstream  file(filename);
 
     //
     double v1, v2, v3;
     std::vector<Vec3> out_csv;
-
+    
     int nrows = 0;
     if (file.is_open()) {
 
@@ -239,11 +239,10 @@ std::vector<Vec3> ReadDataDoublex3columns(std::string filename) {
         }
 
         file.close();
-    }
-    else {
+    }else {
         std::cerr << "Error opening file." << std::endl;
     }
-
+  
     return out_csv;
 }
 
@@ -311,10 +310,6 @@ Mat44 ftransf_function(Vec3 knee_trans, Vec3 knee_rot) {
     }
 
     Mat44 R_tib = Rtranstib_4x4*Rtrans0042*R_rot;
-
-    std::cout << "R_tib=" << R_tib << std::endl;
-    std::cout << "knee_trans=" << knee_trans << std::endl;
-    std::cout << "knee_rot=" << knee_rot << std::endl;
     return R_tib;
 }
 
@@ -326,48 +321,73 @@ Real CheckContact(Real overlap) {
 }
 
 Vector_<Real> GenerateMultList_cylinders(std::vector<std::vector<int>> pairs_list, Vector_<Vec3> cont_centers_Fem, Vector_<Vec3> cont_centers_tib_transf, Vector_<Vec4> tibplanes, Vector_<Vec4> femplanes, Vector_<Real> radfem) {
+    std::cout << pairs_list.size() << std::endl;
     Vector_<Real> mlist(pairs_list.size(), 0.0);
     for (int i = 0; i < pairs_list.size(); i++) {
-        Vec3 arg1 = Vec3(femplanes[pairs_list[i][1] - 1][0], femplanes[pairs_list[i][1] - 1][1], femplanes[pairs_list[i][1] - 1][2]);
-        Vec3 arg2 = Vec3(cont_centers_tib_transf[pairs_list[i][0] - 1][0], cont_centers_tib_transf[pairs_list[i][0] - 1][1], cont_centers_tib_transf[pairs_list[i][0] - 1][2]);
-        Vec3 arg3 = Vec3(tibplanes[pairs_list[i][0] - 1][0], tibplanes[pairs_list[i][0] - 1][1], tibplanes[pairs_list[i][0] - 1][2]);
-        Real d = (dot(arg1, arg2) + femplanes[pairs_list[i][1] - 1][3] )/ (-dot(arg1, arg3));
-        Vec3 prod_aux = Vec3(tibplanes[pairs_list[i][0] - 1][0] * d, tibplanes[pairs_list[i][0] - 1][1] * d, tibplanes[pairs_list[i][0] - 1][2] * d);
-        Vec3 Pt = cont_centers_tib_transf[pairs_list[i][0] - 1] + prod_aux;
-        Vec3 d_mult = cont_centers_Fem[pairs_list[i][1] - 1] - Pt;
-        Real distaux = radfem[pairs_list[i][1] - 1] -
+        Vec3 arg1 = Vec3(femplanes[pairs_list[i][1]-1][0], femplanes[pairs_list[i][1]-1][1], femplanes[pairs_list[i][1]-1][2]);
+        Vec3 arg2 = Vec3(cont_centers_tib_transf[pairs_list[i][0]-1][0], cont_centers_tib_transf[pairs_list[i][0]-1][1], cont_centers_tib_transf[pairs_list[i][0]-1][2]);
+        Vec3 arg3 = Vec3(tibplanes[pairs_list[i][0]-1][0], tibplanes[pairs_list[i][0]-1][1], tibplanes[pairs_list[i][0]-1][2]);
+        Real d = (dot(arg1, arg2) + femplanes[pairs_list[i][1]-1][3]) / (-dot(arg1, arg3));
+        std::cout << "arg1=" << arg1 << std::endl;
+        std::cout << "arg2=" << arg2 << std::endl;
+        std::cout << "arg3=" << arg3 << std::endl;
+        Vec3 prod_aux = Vec3(tibplanes[pairs_list[i][0]-1][0] * d, tibplanes[pairs_list[i][0]-1][1] * d, tibplanes[pairs_list[i][0]-1][2] * d);
+        Vec3 Pt = cont_centers_tib_transf[pairs_list[i][0]-1] + prod_aux;
+        Vec3 d_mult = cont_centers_Fem[pairs_list[i][1]-1] - Pt;
+        Real distaux = radfem[pairs_list[i][1]-1] -
             sqrt(pow(d_mult[0], 2.0) + pow(d_mult[1], 2.0) + pow(d_mult[2], 2.0) + 1e-8);
-        mlist[i] = CheckContact(distaux);
+        
+        std::cout << "cont_centers_Fem.size=" << cont_centers_Fem.size() << std::endl;
+        std::cout << "femplanes.size=" << femplanes.size() << std::endl;
+        std::cout << "pairs_list[i] =" << pairs_list[i][0] << "," << pairs_list[i][1] << std::endl;
+        std::cout << "tibplanes[pairs_list[i][0]-1]=" << tibplanes[pairs_list[i][0] - 1] << std::endl;
+        std::cout << "femplanes[pairs_list[i][1]-1]=" << femplanes[pairs_list[i][1] - 1] << std::endl;
+        std::cout << "d=" << d << std::endl;
+        std::cout << "prod_aux" << prod_aux << std::endl;
+        std::cout << "Pt=" << Pt << std::endl;
+        std::cout << "d_mult=" << d_mult << std::endl;
+        std::cout << "distaux=" << distaux << std::endl;
+        mlist[i]= CheckContact(distaux);
+        std::cout << "mlist[i]=" << mlist[i] << std::endl;
     }
+    std::cout << "mlist=" << mlist << std::endl;
     return mlist;
 }
 
 Vector_<Real> GenerateMultList_spheres(std::vector<std::vector<int>> pairs_list, Vector_<Vec3> cont_centers_Fem, Vector_<Vec3> cont_centers_tib_transf, Vector_<Real> conFem_r, Vector_<Real> conTib_r) {
-    Vector_<Real> mlist(pairs_list.size(), 0.0);
+    Vector_<Real> mlist(pairs_list.size(),0.0);
+   
+    // method of spheres to generate multipliers
     for (int i = 0; i < pairs_list.size(); i++) {
         Vec3 d = cont_centers_Fem[pairs_list[i][1] - 1] - cont_centers_tib_transf[pairs_list[i][0] - 1];
         /* std::cout << "d=" << d << std::endl;
-         std::cout << "operation=" << pow(pow(d[0], 2.0) + pow(d[1], 2.0) + pow(d[2], 2.0) + 1.0e-8, 0.5) << std::endl;*/
+            std::cout << "operation=" << pow(pow(d[0], 2.0) + pow(d[1], 2.0) + pow(d[2], 2.0) + 1.0e-8, 0.5) << std::endl;*/
         Real distaux = conFem_r[pairs_list[i][1] - 1] + conTib_r[pairs_list[i][0] - 1] - pow(pow(d[0], 2.0) + pow(d[1], 2.0) + pow(d[2], 2.0) + 1.0e-8, 0.5);
         mlist[i] = CheckContact(distaux);
     }
+
+    /*std::cout << "mlist" << std::endl; 
+    std::cout << mlist << std::endl;*/
     return mlist;
 }
+
 void CalculateIntersection_cylinders(Vec3  cont_centers_tib, Vec3 cont_centers_fem, Vec3& d) {
     d = cont_centers_fem - cont_centers_tib;
 }
+
 void CalculateIntersection_spheres(Vector_<Vec3> fem_Points, Vector_<Vec3> tib_Points, Vec3 &d) {
     Vec3 Ctib(0.0);
     Vec3 Cfem(0.0);
     // mean point of the tib face
     for (int i = 0; i < 3; i++) {
-        Ctib = mean(Vec3(tib_Points[0][i], tib_Points[1][i], tib_Points[2][i]));
+        Ctib = mean (Vec3(tib_Points[0][i], tib_Points[1][i], tib_Points[2][i]));
     }
-
+    
     // mean point of the fem face
     for (int i = 0; i < 3; i++) {
         Cfem[i] = mean(Vec3(fem_Points[0][i], fem_Points[1][i], fem_Points[2][i]));
     }
+
     d = Cfem - Ctib;
 
 }
@@ -376,24 +396,39 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
     Vector_<Real> proj(d_v.size());
     //Vector_<Vec3> dist_v(d_v.size());
     Vector_<Real> pen(d_v.size());
-
+    /*std::cout << proj.size() << std::endl;
+    std::cout << mults.size() << std::endl;
+    std::cout << mults << std::endl;*/
     for (int i = 0; i < d_v.size(); i++) {
         proj[i] = dot(d_v[i], nt_v[i]); // projection of distance between tibial and femoral faces to the normal of tibial face
-        pen[i] = -proj[i] * mults[i]; // pen is for penetration
+        pen[i] = -proj[i]*mults[i]; // pen is for penetration
+        //pen[i] = -proj[i]; // pen is for penetration
     }
     Real k = 1e4;
+    std::cout << "proj" << proj << std::endl;
+    std::cout << "pen" << pen << std::endl;
+    std::cout << "mults=" << mults << std::endl;
+    std::cout << "sum mults=" << sum(mults) << std::endl;
+    std::cout << "k*pen" << k*pen << std::endl;
+    std::cout << "exp(k*pen))" << exp(k * pen) << std::endl;
 
     //maxpen = (log(sum(exp(k*pen))+1e-16) / k); //version logSum
-    maxpen = (log((1.0 / pen.size()) * sum(exp(k * pen)) + 1e-16) / k); //version mellowmax
+    maxpen = (log((1.0/pen.size())*sum(exp(k * pen))+1e-16) / k); //version mellowmax
     //maxpen = max(pen); // version nosmooth
+    
+    //Real auxval(0.0);
+    //for (int i = 0; i < pen.size(); i++) {
+    //    auxval = auxval + pow(pen[i], 10.0);
+    //}
+    //Real auxval2 = pow(auxval, 1.0 / 10);
+    //maxpen = sum(pen*(0.5 * tanh(k * (pen - auxval2 + 1e-5)) + 0.5)); // version p norm
 
-    std::cout << "d_v=" << d_v << std::endl;
-    std::cout << "nt_v=" << nt_v << std::endl;
-    std::cout << "proj=" << proj << std::endl;
-    std::cout << "mults=" << mults << std::endl;
-    std::cout << "pen=" << pen << std::endl;
+    std::cout << "sum(exp(k * pen))" << sum(exp(k * pen)) << std::endl;
     std::cout << "maxpen=" << maxpen << std::endl;
-
+    std::cout << "1.0 / pen.size()" << 1.0/pen.size() << std::endl;
+    std::cout << "true max pen=" << max(pen) << std::endl;
+    std::cout << "nt_v=" << nt_v << std::endl;
+    //maxpen = max(pen);
     nt_l = nt_v[0];
 }
 
@@ -404,40 +439,45 @@ Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
     Real p_init = ((1 - poisson)*E / ((1 + poisson)*(1 - 2 * poisson)))*pen / h;
 
     Real p = p_init*(1 + tanh(k*pen)) / 2;
-    std::cout << "p=" << p << std::endl;
+
+    std::cout << "pen" << pen << std::endl;
+    std::cout << "p" << p << std::endl;
+
     return p;
 }
 
-void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3& SumForces, Vec3& SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vector_<Real> multipliers, Vec3 knee_trans, Vec3 knee_rot, Vector_<Real> At, Vector_<Vec4> tibplanes, Vector_<Vec3> cont_centers_Fem, Vector_<Vec3> cont_centers_tib_transf, Vector &p_vec) {
+void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vector<int>> facesFem, Vector_<Vec3> tibPoints_transf, std::vector<std::vector<int>> facesTib, std::vector<std::vector<int>> pairs_list, Vec3& SumForces, Vec3& SumMoments, Real poisson, Real E, Real h, Vec3 originTib_G, Vector_<Real> multipliers, Vec3 knee_trans, Vec3 knee_rot, Vector_<Real> At, Vector_<Vec4> tibplanes, Vector_<Vec3> cont_centers_Fem, Vector_<Vec3> cont_centers_tib_transf) {
     Vector_<Vec3> d(pairs_list.size());
     Vector_<Vec3> nt(pairs_list.size());
     Vector_<Vec3> force_s_l(0);
     Vector_<Real> face_s(0);
     Vector_<Vec3> mom_O(0);
 
-    int k = 1; //number of contacting elements in femur /in tibia?
+    int k = 1; //number of contacting elements in femur
     int l = 1; //count number of elements contacting element k of femur
-    
+
     //std::cout << "facesFem.size()" << facesFem.size() << std::endl;
     //for (int i = 0; i < facesFem.size(); i++) {
     //    std::cout << "faces_fem[" << i << "]=" << facesFem.at(i).at(0) << " " << facesFem.at(i).at(1) << facesFem.at(i).at(2) << std::endl;
     //}
-    std::cout << pairs_list.size() << std::endl;
+    std::cout << "femPoints" << std::endl;
+    for (int i = 0; i < tibplanes.size(); i++) {
+        std::cout << "tibplanes[pairs_list[i][0]]=" << tibplanes[pairs_list[i][0]] << std::endl;
+    }
+
+    for (int i = 0; i < size(femPoints); i++) {
+        std::cout << femPoints[i] << std::endl;
+    }
 
     for (int i = 0; i < pairs_list.size(); i++) {
         Vec3 d_aux;
+        ///////// check Ctib_aux
 
         if (strcmp(multiplier_method, "cylinders") == 0) {
+            std::cout << multiplier_method << std::endl;
             CalculateIntersection_cylinders(cont_centers_tib_transf[pairs_list[i][0] - 1], cont_centers_Fem[pairs_list[i][1] - 1], d_aux);
-            std::cout << "i=" << i << std::endl;
-            std::cout << "cont_centers_tib_transf[pairs_list[i][0] - 1]=" << cont_centers_tib_transf[pairs_list[i][0] - 1] <<  std::endl;
-            std::cout << "cont_centers_Fem[pairs_list[i][1] - 1]=" << cont_centers_Fem[pairs_list[i][1] - 1] << std::endl;
-            std::cout << std::endl;
-
-
         }
         else if (strcmp(multiplier_method, "spheres") == 0) {
-            std::cout << pairs_list[i][1] - 1 << std::endl;
             std::vector<int> facesFem_ind = facesFem[pairs_list[i][1] - 1];
             Vector_<Vec3> fem_Points_ind(3);
             for (int j = 0; j < 3; j++) {
@@ -450,21 +490,14 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
                 tib_Points_ind[j] = tibPoints_transf[facesTib_ind[j] - 1];
             }
             CalculateIntersection_spheres(fem_Points_ind, tib_Points_ind, d_aux); // first element in pairs is tibia, second femur
-
-            std::cout << "fem_Points_ind" << fem_Points_ind << std::endl;
-            std::cout << "facesFem_ind" << facesFem_ind[0] << " " << facesFem_ind[1] << " " << facesFem_ind[2] << std::endl;
-            std::cout << "facesTib_ind" << facesTib_ind[0] << " " << facesTib_ind[1] << " " << facesTib_ind[2] << std::endl;
-            std::cout << "tibPoints_transf 0 1 and 2: " << tibPoints_transf[0] << " " << tibPoints_transf[1] << " " << tibPoints_transf[2] << std::endl;
-            std::cout << "tib_Points_ind=" << tib_Points_ind << std::endl;
-            std::cout << "d= " << d << std::endl;
-
         }
         d[i] = d_aux;
         nt[i] = Vec3(tibplanes[pairs_list[i][0]-1][0], tibplanes[pairs_list[i][0]-1][1], tibplanes[pairs_list[i][0]-1][2]);
-        
-        /*std::cout << "pairs_list" << pairs_list[i][0] - 1 << " " << pairs_list[i][1] - 1 << std::endl;*/
+        std::cout << multipliers << std::endl;
+
+
         if (i > 0) {
-            if ((pairs_list[i][0] == pairs_list[i - 1][0])&&(i<pairs_list.size()-1)) {
+            if ((pairs_list[i][0] == pairs_list[i - 1][0]) && (i < pairs_list.size() - 1)) {
                 l = l + 1;
             }
             else {
@@ -478,32 +511,22 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
                     nt_aux_list[j] = nt[i - l + j + 1];
                     multipliers_list[j] = multipliers[i - l + j + 1];
                 }
-                CalculateMaximumPenetration(d_aux_list, nt_aux_list,maxpen,nt_l, multipliers_list);
-                
-
-
+                CalculateMaximumPenetration(d_aux_list, nt_aux_list, maxpen, nt_l, multipliers_list);
+                std::cout << maxpen << std::endl;
+                std::cout << At[pairs_list[i][0] - 1] << std::endl;
+                std::cout << "nt_l=" << nt_l << std::endl;
                 Real p = CalculatePressure(poisson, E, maxpen, h);
-                std::cout << "size p_vec=" << p_vec.size() << std::endl;
-                std::cout << "p=" << p << std::endl;
-                p_vec[k - 1] = p;
 
                 force_s_l.resizeKeep(k);
-                force_s_l[k - 1] = p* At[pairs_list[i][0] - 1] *nt_l;
+                force_s_l[k - 1] = p * At[pairs_list[i][0] - 1] * nt_l;
                 face_s.resizeKeep(k);
-                face_s[k-1] = pairs_list[i - 2][0];
+                face_s[k - 1] = pairs_list[i - 2][0];
                 mom_O.resizeKeep(k);
                 mom_O[k - 1] = cross(cont_centers_tib_transf[pairs_list[i][0] - 1] - originTib_G, force_s_l[k - 1]);
-
-                std::cout << "d_aux_list=" << d_aux_list << std::endl;
-                std::cout << "maxpen=" << maxpen << std::endl;
-                std::cout << "p=" << p << std::endl;
-                std::cout << "At=" << At << std::endl;
-                std::cout << "nt_l=" << nt_l << std::endl;
 
                 k = k + 1;
                 l = 2;
                 while (k < pairs_list[i][0]) {
-                    p_vec[k - 1] = p*0.0;
                     k = k + 1;
                 }
                 ///////////////
@@ -515,8 +538,9 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
         }
 
     }
-    
-    std::cout << "p_vec= " << p_vec << std::endl;
+    for (int i = 0; i < nt.size(); i++){
+        std::cout << "nt=" << nt[i] << std::endl;
+    }
     Vec3 Sum_Force_G;
     Vec3 Sum_Moments_G;
     Sum_Force_G.setToZero();
@@ -532,13 +556,11 @@ void CalculateForceCompartment(std::vector<Vec3> femPoints, std::vector<std::vec
     SumForces = MrottibTrans*Sum_Force_G;
     SumMoments = MrottibTrans*Sum_Moments_G;
     
-    std::cout << "force_s_l=" << force_s_l << std::endl;
-    std::cout << "Sum_Force_G=" << Sum_Force_G << std::endl;
-    std::cout << "SumForces=" << SumForces << std::endl;
+    std::cout << SumForces << std::endl;
 
 }
 
-void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, Vec3 &SumMoments, Real &SumForces_vert_Lat, Real &SumForces_vert_Med, Vector &pvec1, Vector &pvec2) {
+void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, Vec3 &SumMoments, Real &SumForces_vert_Lat, Real &SumForces_vert_Med) {
     //// Read Geometry Information
     std::string hostname = getHostname();
     std::string root_folder;
@@ -553,19 +575,19 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     // Read Points
     std::string filename_femPoints = root_folder + "femPoints_" + std::to_string(nfacesFem) + ".csv";
     std::vector<Vec3> femPoints = ReadDataDoublex3columns(filename_femPoints);
-    std::string filename_tibPoints = root_folder + "tibPoints_" + std::to_string(nfacesTib) + ".csv";
+    std::string filename_tibPoints=root_folder+"tibPoints_" + std::to_string(nfacesTib) + ".csv";
     std::vector<Vec3> tibPoints = ReadDataDoublex3columns(filename_tibPoints);
     // Read Faces
     std::string filename_facesFem = root_folder + "facesFem_" + std::to_string(nfacesFem) + ".csv";
     std::vector<std::vector<int>> facesFem = ReadDataIntx3columns(filename_facesFem);
-    std::string filename_facesTib1 = root_folder + "facesTib1_" + std::to_string(nfacesTib) + ".csv";
+    std::string filename_facesTib1 = root_folder + "facesTib1_" +std::to_string(nfacesTib) + ".csv";
     std::vector<std::vector<int>> facesTib1 = ReadDataIntx3columns(filename_facesTib1);
     std::string filename_facesTib2 = root_folder + "facesTib2_" + std::to_string(nfacesTib) + ".csv";
     std::vector<std::vector<int>> facesTib2 = ReadDataIntx3columns(filename_facesTib2);
     // Read centers
     std::string filename_conFem = root_folder + "ConFem_" + std::to_string(nfacesFem) + ".csv";
     std::vector<Vec4> conFem = ReadDataDoublex4columns(filename_conFem);
-    std::string filename_conTibia1 = root_folder + "ConTib1_" + std::to_string(nfacesTib) + ".csv";
+    std::string filename_conTibia1 = root_folder + "ConTib1_" +std::to_string(nfacesTib) + ".csv";
     std::vector<Vec4> conTib1 = ReadDataDoublex4columns(filename_conTibia1);
     std::string filename_conTibia2 = root_folder + "ConTib2_" + std::to_string(nfacesTib) + ".csv";
     std::vector<Vec4> conTib2 = ReadDataDoublex4columns(filename_conTibia2);
@@ -575,11 +597,13 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     std::string filename_pairs1 = root_folder + "pairs1_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + radForPairs + "cm.csv";
     std::string filename_pairs2 = root_folder + "pairs2_" + std::to_string(nfacesTib) + "x" + std::to_string(nfacesFem) + "_at" + radForPairs + "cm.csv";
 
+    std::cout << filename_pairs1 << std::endl;
+
     std::vector<std::vector<int>> pairs1_list = ReadDataIntx2columns(filename_pairs1);
     std::vector<std::vector<int>> pairs2_list = ReadDataIntx2columns(filename_pairs2);
-
+    
     std::cout << filename_pairs1 << std::endl;
-    std::cout << pairs1_list[4][0] << " " << pairs1_list[4][1] << std::endl;
+    std::cout << pairs1_list[4][0] << " " << pairs1_list[4][1] << std::endl;  
 
     // Sum shift translation to the femur
     for (int i = 0; i < size(femPoints); i++) {
@@ -589,20 +613,23 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     Vector_<Vec3> cont_centers_Fem(conFem.size(), Vec3(0));
     Vector_<Real> conFem_r(conFem.size());
     for (int i = 0; i < conFem.size(); i++) {
-        cont_centers_Fem[i] = Vec3(conFem[i][0], conFem[i][1], conFem[i][2]) + Vec3(0.0, 0.042, 0.0);
+        cont_centers_Fem[i]=Vec3(conFem[i][0],conFem[i][1], conFem[i][2]) + Vec3(0.0, 0.042, 0.0);
         conFem_r[i] = conFem[i][3];
     }
 
+    std::cout << facesFem[0][0] << facesFem[0][1] << facesFem[0][2] << std::endl;
+    std::cout << facesFem[1][0] << facesFem[1][1] << facesFem[1][2] << std::endl;
+
+ 
     //test with numerical values
     //knee_trans = Vec3(0.01, 0.03, 0.008);
     //knee_rot = Vec3(0.1, 0.03, 0.025);
+    std::cout << "knee_trans=" << knee_trans << std::endl;
 
     //// Apply transformations
     // Get matrix transformation of tibia with respect to the femur
     Mat44 Mtransf_tib = ftransf_function(knee_trans, knee_rot);
     std::cout << "Mtransf_tib=" << Mtransf_tib << std::endl;
-    std::cout << "knee_trans"<< knee_trans << std::endl;
-    std::cout << "knee_rot" << knee_rot << std::endl;
 
     // Apply the transformation to all points of the tibia
     Vec4 tibPoints_transf_aux(1);
@@ -615,10 +642,12 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     Vector_<Real> conTib2_r(conTib2.size());
     for (int i = 0; i < size(tibPoints); i++) {
         tibPoints_transf_aux = Mtransf_tib*Vec4(tibPoints[i][0], tibPoints[i][1], tibPoints[i][2], 1.0);
+
         for (int j = 0; j < 3; j++) {
             tibPoints_transf[i][j] = tibPoints_transf_aux[j];
         }
     }
+    std::cout << conTib1.size() << std::endl;
     for (int i = 0; i < conTib1.size(); i++) { // is the size of conTib correct?
         cont_centers_tib_aux1 = Mtransf_tib * Vec4(conTib1[i][0], conTib1[i][1], conTib1[i][2], 1.0);
         conTib1_r[i] = conTib1[i][3];
@@ -627,6 +656,7 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
             cont_centers_tib_transf1[i][j] = cont_centers_tib_aux1[j];
         }
     }
+    std::cout << conTib2.size() << std::endl;
     for (int i = 0; i < conTib2.size(); i++) { // is the size of conTib correct?
         cont_centers_tib_aux2 = Mtransf_tib * Vec4(conTib2[i][0], conTib2[i][1], conTib2[i][2], 1.0);
         conTib2_r[i] = conTib2[i][3];
@@ -636,14 +666,11 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         }
     }
 
-    std::cout << "tibPoints[0]= " << tibPoints[0] << std::endl;
-    std::cout << "cont_centers_tib_aux1[0]" << cont_centers_tib_transf1[0] << std::endl;
     // Calculate origin of the tibia...
     Vec4 originTib_G4 = Mtransf_tib*Vec4(0, 0, 0, 1);
     Vec3 originTib_G = Vec3(originTib_G4[0], originTib_G4[1], originTib_G4[2]);
     // 
 
-    // Calculate multipliers for all pairs at this instant
     // Calculate multipliers for all pairs at this instant, and areas of tibia faces
     Vector_<Real> multipliers1(pairs1_list.size(), 0.0);
     Vector_<Real> multipliers2(pairs1_list.size(), 0.0);
@@ -651,8 +678,6 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     Vector_<Real> At2(conTib1_r.size(), 0.0);
     Vector_<Vec4> tibplanes1(conTib1_r.size(), Vec4(0.0));
     Vector_<Vec4> tibplanes2(conTib2_r.size(), Vec4(0.0));
-    std::cout << conTib1_r.size() << std::endl;
-    std::cout << conTib2_r.size() << std::endl;
     for (int i = 0; i < conTib1_r.size(); i++) {
         Vec3 edge1_t = tibPoints_transf[facesTib1[i][1] - 1] - tibPoints_transf[facesTib1[i][0] - 1];
         Vec3 edge2_t = tibPoints_transf[facesTib1[i][2] - 1] - tibPoints_transf[facesTib1[i][1] - 1];
@@ -681,15 +706,16 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         Real anglec = acos(dot(edge1_t, edge2_t) / (edge1_t.norm() * edge2_t.norm()));
         At2[i] = (1.0 / 2.0) * edge1_t.norm() * edge2_t.norm() * sin(anglec);
     }
-
+    std::cout << "At1=" << At1 << std::endl;
+    std::cout << "At2=" << At2 << std::endl;
     if (strcmp(multiplier_method, "cylinders") == 0) {
         // method of cylinders to generate multipliers
 
         /// first compute planes
         Vector_<Vec4> femplanes(conFem_r.size(), Vec4(0.0));
         for (int i = 0; i < conFem_r.size(); i++) {
-            Vec3 edge1_s = femPoints[facesFem[i][1] - 1] - femPoints[facesFem[i][0] - 1];
-            Vec3 edge2_s = femPoints[facesFem[i][2] - 1] - femPoints[facesFem[i][1] - 1];
+            Vec3 edge1_s = femPoints[facesFem[i][1]-1] - femPoints[facesFem[i][0]-1];
+            Vec3 edge2_s = femPoints[facesFem[i][2]-1] - femPoints[facesFem[i][1]-1];
             //// unit normal vector to triangle of femur
             Vec3 ns_i = cross(edge1_s, edge2_s);
             ns_i = ns_i.normalize();
@@ -699,15 +725,15 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
             femplanes[i][2] = ns_i[2];
             femplanes[i][3] = Dplanefem;
         }
-
+        
         // Calculate multipliers for all pairs at this instant
         multipliers1 = GenerateMultList_cylinders(pairs1_list, cont_centers_Fem, cont_centers_tib_transf1, tibplanes1, femplanes, conFem_r);
         multipliers2 = GenerateMultList_cylinders(pairs2_list, cont_centers_Fem, cont_centers_tib_transf2, tibplanes2, femplanes, conFem_r);
-
        
     }
+
     else if (strcmp(multiplier_method, "spheres") == 0) {
-        /*for (int i = 0; i < conTib1_r.size(); i++) {
+       /* for (int i = 0; i < conTib1_r.size(); i++) {
             Vec3 edge1_t = tibPoints_transf[facesTib1[i][1] - 1] - tibPoints_transf[facesTib1[i][0] - 1];
             Vec3 edge2_t = tibPoints_transf[facesTib1[i][2] - 1] - tibPoints_transf[facesTib1[i][1] - 1];
             Real anglec = acos(dot(edge1_t, edge2_t) / (edge1_t.norm() * edge2_t.norm()));
@@ -722,7 +748,11 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
         multipliers1 = GenerateMultList_spheres(pairs1_list, cont_centers_Fem, cont_centers_tib_transf1, conFem_r, conTib1_r);
         multipliers2 = GenerateMultList_spheres(pairs2_list, cont_centers_Fem, cont_centers_tib_transf2, conFem_r, conTib2_r);
     }
-    std::cout << "multipliers1=" << multipliers1 << std::endl;
+
+    std::cout << "multipliers1" << multipliers1 << std::endl;
+    std::cout << "multipliers2" << multipliers2 << std::endl;
+
+
     Real poisson =0.46;
     Real E = 400 * 1e6;
     Real h = 0.006;
@@ -735,17 +765,15 @@ void ComputeKneeContactForces(Vec3 knee_trans, Vec3 knee_rot, Vec3 &SumForces, V
     SumForces2.setToZero();
     SumMoments2.setToZero();
 
-    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib1, pairs1_list, SumForces1, SumMoments1, poisson, E, h, originTib_G, multipliers1, knee_trans, knee_rot, At1, tibplanes1, cont_centers_Fem, cont_centers_tib_transf1, pvec1);
-    std::cout << "pvec1= " << pvec1 << std::endl;
+    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib1, pairs1_list, SumForces1, SumMoments1, poisson, E, h, originTib_G, multipliers1, knee_trans, knee_rot, At1, tibplanes1, cont_centers_Fem, cont_centers_tib_transf1);
     std::cout << "forces=" << SumForces1 << " moments=" << SumMoments1 << std::endl;
-    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib2, pairs2_list, SumForces2, SumMoments2, poisson, E, h, originTib_G, multipliers2, knee_trans, knee_rot, At2, tibplanes2, cont_centers_Fem, cont_centers_tib_transf2, pvec2);
-    std::cout << "pvec2= " << pvec2 << std::endl;
-    
+    CalculateForceCompartment(femPoints, facesFem, tibPoints_transf, facesTib2, pairs2_list, SumForces2, SumMoments2, poisson, E, h, originTib_G, multipliers2, knee_trans, knee_rot, At2, tibplanes2, cont_centers_Fem, cont_centers_tib_transf2);
     SumForces = SumForces1 + SumForces2;
     SumMoments = SumMoments1 + SumMoments2;
-    SumForces_vert_Med = SumForces1[1];
-    SumForces_vert_Lat = SumForces2[1];
+    SumForces_vert_Med = SumForces1[1]; // tibial part 1 is medial
+    SumForces_vert_Lat = SumForces2[1]; // tibial part 2 is lateral
     std::cout << "sumforces=" << SumForces << std::endl;
+
 }
 // Function F
 template<typename T>
@@ -1018,6 +1046,94 @@ int F_generic(const T** arg, T** res) {
     model->addBody(hand_l);             model->addJoint(radius_hand_l);
     model->addBody(hand_r);             model->addJoint(radius_hand_r);
 
+    /// Contact elements
+    OpenSim::HuntCrossleyForce_smooth* HC_1_r;
+    OpenSim::HuntCrossleyForce_smooth* HC_2_r;
+    OpenSim::HuntCrossleyForce_smooth* HC_3_r;
+    OpenSim::HuntCrossleyForce_smooth* HC_4_r;
+    OpenSim::HuntCrossleyForce_smooth* HC_5_r;
+    OpenSim::HuntCrossleyForce_smooth* HC_6_r;
+    OpenSim::HuntCrossleyForce_smooth* HC_1_l;
+    OpenSim::HuntCrossleyForce_smooth* HC_2_l;
+    OpenSim::HuntCrossleyForce_smooth* HC_3_l;
+    OpenSim::HuntCrossleyForce_smooth* HC_4_l;
+    OpenSim::HuntCrossleyForce_smooth* HC_5_l;
+    OpenSim::HuntCrossleyForce_smooth* HC_6_l;
+    /// Parameters
+    osim_double_adouble radiusSphere = 0.032;
+    osim_double_adouble stiffness = 1000000;
+    osim_double_adouble dissipation = 2.0;
+    osim_double_adouble staticFriction = 0.8;
+    osim_double_adouble dynamicFriction = 0.8;
+    osim_double_adouble viscousFriction = 0.5;
+    osim_double_adouble transitionVelocity = 0.2;
+    Vec3 normal = Vec3(0, 1, 0);
+    osim_double_adouble offset = 0;
+    Vec3 locSphere_1_r(0.00190115788407966, -0.021859, -0.00382630379623308);
+    Vec3 locSphere_2_r(0.148386399942063, -0.021859, -0.028713422052654);
+    Vec3 locSphere_3_r(0.133001170607051, -0.021859, 0.0516362473449566);
+    Vec3 locSphere_4_r(0.06, -0.0214476, -0.0187603084619177);
+    Vec3 locSphere_5_r(0.0662346661991635, -0.021859, 0.0263641606741698);
+    Vec3 locSphere_6_r(0.045, -0.0214476, 0.0618569567549652);
+    Vec3 locSphere_1_l(0.00190115788407966, -0.021859, 0.00382630379623308);
+    Vec3 locSphere_2_l(0.148386399942063, -0.021859, 0.028713422052654);
+    Vec3 locSphere_3_l(0.133001170607051, -0.021859, -0.0516362473449566);
+    Vec3 locSphere_4_l(0.06, -0.0214476, 0.0187603084619177);
+    Vec3 locSphere_5_l(0.0662346661991635, -0.021859, -0.0263641606741698);
+    Vec3 locSphere_6_l(0.045, -0.0214476, -0.0618569567549652);
+    /// Left foot contact shere specifications
+    HC_1_l = new HuntCrossleyForce_smooth("sphere_1_l", "calcn_l", locSphere_1_l, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_2_l = new HuntCrossleyForce_smooth("sphere_2_l", "calcn_l", locSphere_2_l, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_3_l = new HuntCrossleyForce_smooth("sphere_3_l", "calcn_l", locSphere_3_l, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_4_l = new HuntCrossleyForce_smooth("sphere_4_l", "toes_l", locSphere_4_l, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_5_l = new HuntCrossleyForce_smooth("sphere_5_l", "calcn_l", locSphere_5_l, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_6_l = new HuntCrossleyForce_smooth("sphere_6_l", "toes_l", locSphere_6_l, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    /// Add left foot contact spheres to model
+    model->addComponent(HC_1_l);
+    HC_1_l->connectSocket_body_sphere(*calcn_l);
+    model->addComponent(HC_2_l);
+    HC_2_l->connectSocket_body_sphere(*calcn_l);
+    model->addComponent(HC_3_l);
+    HC_3_l->connectSocket_body_sphere(*calcn_l);
+    model->addComponent(HC_4_l);
+    HC_4_l->connectSocket_body_sphere(*toes_l);
+    model->addComponent(HC_5_l);
+    HC_5_l->connectSocket_body_sphere(*calcn_l);
+    model->addComponent(HC_6_l);
+    HC_6_l->connectSocket_body_sphere(*toes_l);
+    /// Right foot contact shere specifications
+    HC_1_r = new HuntCrossleyForce_smooth("sphere_1_r", "calcn_r", locSphere_1_r, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_2_r = new HuntCrossleyForce_smooth("sphere_2_r", "calcn_r", locSphere_2_r, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_3_r = new HuntCrossleyForce_smooth("sphere_3_r", "calcn_r", locSphere_3_r, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_4_r = new HuntCrossleyForce_smooth("sphere_4_r", "toes_r", locSphere_4_r, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_5_r = new HuntCrossleyForce_smooth("sphere_5_r", "calcn_r", locSphere_5_r, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    HC_6_r = new HuntCrossleyForce_smooth("sphere_6_r", "toes_r", locSphere_6_r, radiusSphere,
+        stiffness, dissipation, staticFriction, dynamicFriction, viscousFriction, transitionVelocity, normal, offset);
+    /// Add right foot contact spheres to model
+    model->addComponent(HC_1_r);
+    HC_1_r->connectSocket_body_sphere(*calcn_r);
+    model->addComponent(HC_2_r);
+    HC_2_r->connectSocket_body_sphere(*calcn_r);
+    model->addComponent(HC_3_r);
+    HC_3_r->connectSocket_body_sphere(*calcn_r);
+    model->addComponent(HC_4_r);
+    HC_4_r->connectSocket_body_sphere(*toes_r);
+    model->addComponent(HC_5_r);
+    HC_5_r->connectSocket_body_sphere(*calcn_r);
+    model->addComponent(HC_6_r);
+    HC_6_r->connectSocket_body_sphere(*toes_r);
+
     // Initialize system and state
     SimTK::State* state;
     state = new State(model->initSystem());
@@ -1030,11 +1146,9 @@ int F_generic(const T** arg, T** res) {
     // Read inputs
     std::vector<T> x(arg[0], arg[0] + NX);
     std::vector<T> u(arg[1], arg[1] + NU);
-    std::vector<T> p(arg[2], arg[2] + NP);
 
     // States and controls
     T ua[NU+2]; /// joint accelerations (Qdotdots) - controls
-    T up[NP]; /// contact model parameters - parameters
     Vector QsUs(NX+4); /// joint positions (Qs) and velocities (Us) - states
     
     // Assign inputs to model variables
@@ -1075,8 +1189,6 @@ int F_generic(const T** arg, T** res) {
     ua[34] = u[20]; /// 34 Simbody is 20 OpenSim
     ua[35] = u[22]; /// 34 Simbody is 22 OpenSim
 
-    /// Parameters
-    for (int i = 0; i < NP; ++i) up[i] = p[i];
 
     // Set state variables and realize
     model->setStateVariableValues(*state, QsUs);
@@ -1088,18 +1200,11 @@ int F_generic(const T** arg, T** res) {
     Vec3 knee_rot_0 = Vec3(model->getStateVariableValue(*state, "knee_r/knee_angle_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_adduction_r/value"),
         model->getStateVariableValue(*state, "knee_r/knee_rotation_r/value"));
-
-   /* knee_trans = Vec3(-0.000032575542917, 0.043940648715272, 0.000056100835213);
-    knee_rot_0 = Vec3(-0.353766313961517, -0.011783443083743, 0.000344962493082);*/
-
-    //model->setStateVariableValue(*state, "knee_r/knee_tx_r/value", 0.009462599065706);
-    //std::cout << "knee_tx= " << model->getStateVariableValue(*state, "knee_r/knee_tx_r/value") << std::endl;
     
-    //knee_trans = Vec3(0.009673226987742,   0.043885806727087,   0.000190736921646);
-    //knee_rot_0 = Vec3(0.007163779219694,   0.020367475762108, - 0.050217370701021);
-
     Vec3 knee_rot(0);
     knee_rot = Vec3(-knee_rot_0[0], -knee_rot_0[1], knee_rot_0[2]); // change sign to be consistent with joint definition (reverse in .osim)
+
+    std::cout << "pelvis_ty=" << model->getStateVariableValue(*state, "knee_r/pelvis_ty/value") << std::endl;
 
     // Compute Resulting contact wrench at the center of the tibia
     Vec3 KneeCont_SumForces;
@@ -1109,28 +1214,8 @@ int F_generic(const T** arg, T** res) {
     Real SumForces_vert_Lat;
     Real SumForces_vert_Med;
     
-    int nfacestib1 = 0;
-    int nfacestib2 = 0;
-    if (nfacesTib == 49) {
-        nfacestib1 = 26;
-        nfacestib2 = 23;
-    }
-    else if (nfacesTib == 75) {
-        nfacestib1 = 44;
-        nfacestib2 = 31;
-    }
-    else if (nfacesTib == 100) {
-        nfacestib1 = 51;
-        nfacestib2 = 49;
-    }
-    Vector pvec1(nfacestib1);
-    pvec1.setToZero();
-    Vector pvec2(nfacestib2);
-    pvec2.setToZero();
-    ComputeKneeContactForces(knee_trans, knee_rot, KneeCont_SumForces, KneeCont_SumMoments, SumForces_vert_Lat, SumForces_vert_Med, pvec1, pvec2);
-    std::cout << "pvec1= " << pvec1 << std::endl;
-    std::cout << "pvec2= " << pvec2 << std::endl;
 
+    ComputeKneeContactForces(knee_trans, knee_rot, KneeCont_SumForces, KneeCont_SumMoments, SumForces_vert_Lat, SumForces_vert_Med);
     Vec3 KneeCont_SumForces_onTibialTray_inTibialTrayFrame = -KneeCont_SumForces;
     Vec3 KneeCont_SumMoments_onTibialTray_inTibialTrayFrame = -KneeCont_SumMoments;
 
@@ -1161,159 +1246,65 @@ int F_generic(const T** arg, T** res) {
             model->getBodySet().get(i).getMassCenter(),
             model->getBodySet().get(i).getMass()*gravity, appliedBodyForces);
     }
-    /// Extract contact forces
-    Vec3 AppliedPointForce_s1_l, AppliedPointForce_s2_l;
-    Vec3 AppliedPointForce_s3_l, AppliedPointForce_s4_l;
-    Vec3 AppliedPointForce_s5_l, AppliedPointForce_s6_l;
-    Vec3 AppliedPointForce_s1_r, AppliedPointForce_s2_r;
-    Vec3 AppliedPointForce_s3_r, AppliedPointForce_s4_r;
-    Vec3 AppliedPointForce_s5_r, AppliedPointForce_s6_r;
-    int nc = 3;
-    for (int i = 0; i < nc; ++i) {
-        AppliedPointForce_s1_l[i]   = up[i];
-        AppliedPointForce_s2_l[i]   = up[i + nc];
-        AppliedPointForce_s3_l[i]   = up[i + nc + nc];
-        AppliedPointForce_s4_l[i]   = up[i + nc + nc + nc];
-        AppliedPointForce_s5_l[i]   = up[i + nc + nc + nc + nc];
-        AppliedPointForce_s6_l[i]   = up[i + nc + nc + nc + nc + nc];
-        AppliedPointForce_s1_r[i]   = up[i + nc + nc + nc + nc + nc + nc];
-        AppliedPointForce_s2_r[i]   = up[i + nc + nc + nc + nc + nc + nc + nc];
-        AppliedPointForce_s3_r[i]   = up[i + nc + nc + nc + nc + nc + nc + nc + nc];
-        AppliedPointForce_s4_r[i]   = up[i + nc + nc + nc + nc + nc + nc + nc + nc + nc];
-        AppliedPointForce_s5_r[i]   = up[i + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc];
-        AppliedPointForce_s6_r[i]   = up[i + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc];
-    }
-    /// Extract contact sphere locations
-    Vec3 locSphere_s1_r, locSphere_s2_r;
-    Vec3 locSphere_s3_r, locSphere_s4_r;
-    Vec3 locSphere_s5_r, locSphere_s6_r;
-    /// Vertical positions are fixed
-    locSphere_s1_r[1] = -0.021859;
-    locSphere_s2_r[1] = -0.021859;
-    locSphere_s3_r[1] = -0.021859;
-    locSphere_s4_r[1] = -0.0214476;
-    locSphere_s5_r[1] = -0.021859;
-    locSphere_s6_r[1] = -0.0214476;
-    int count = 0;
-    for (int i = 0; i < nc; i+=2) {
-        locSphere_s1_r[i]   = up[count + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc];
-        locSphere_s2_r[i]   = up[count + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1];
-        locSphere_s3_r[i]   = up[count + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1];
-        locSphere_s4_r[i]   = up[count + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1 + nc-1];
-        locSphere_s5_r[i]   = up[count + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1 + nc-1 + nc-1];
-        locSphere_s6_r[i]   = up[count + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1 + nc-1 + nc-1 + nc-1];
-        ++count;
-    }
-    Vec3 locSphere_s1_l(locSphere_s1_r[0],locSphere_s1_r[1],-locSphere_s1_r[2]);
-    Vec3 locSphere_s2_l(locSphere_s2_r[0],locSphere_s2_r[1],-locSphere_s2_r[2]);
-    Vec3 locSphere_s3_l(locSphere_s3_r[0],locSphere_s3_r[1],-locSphere_s3_r[2]);
-    Vec3 locSphere_s4_l(locSphere_s4_r[0],locSphere_s4_r[1],-locSphere_s4_r[2]);
-    Vec3 locSphere_s5_l(locSphere_s5_r[0],locSphere_s5_r[1],-locSphere_s5_r[2]);
-    Vec3 locSphere_s6_l(locSphere_s6_r[0],locSphere_s6_r[1],-locSphere_s6_r[2]);
-    /// Extract radii
-    osim_double_adouble radius_s1, radius_s2, radius_s3, radius_s4, radius_s5, radius_s6;
-    radius_s1 =  up[nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + nc-1];
-    radius_s2 =  up[nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + 1];
-    radius_s3 =  up[nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + 2];
-    radius_s4 =  up[nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + 3];
-    radius_s5 =  up[nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + 4];
-    radius_s6 =  up[nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + nc-1 + 5];
-    /// Compute contact point positions in body frames
-    Vec3 normal = Vec3(0, 1, 0);
-    /// sphere 1 left
-    Vec3 pos_InGround_HC_s1_l = calcn_l->findStationLocationInGround(*state, locSphere_s1_l);
-    Vec3 contactPointpos_InGround_HC_s1_l = pos_InGround_HC_s1_l - radius_s1*normal;
-    Vec3 contactPointpos_InGround_HC_s1_l_adj = contactPointpos_InGround_HC_s1_l - 0.5*contactPointpos_InGround_HC_s1_l[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s1_l = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s1_l_adj, *calcn_l);
-    /// sphere 2 left
-    Vec3 pos_InGround_HC_s2_l = calcn_l->findStationLocationInGround(*state, locSphere_s2_l);
-    Vec3 contactPointpos_InGround_HC_s2_l = pos_InGround_HC_s2_l - radius_s2*normal;
-    Vec3 contactPointpos_InGround_HC_s2_l_adj = contactPointpos_InGround_HC_s2_l - 0.5*contactPointpos_InGround_HC_s2_l[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s2_l = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s2_l_adj, *calcn_l);
-    /// sphere 3 left
-    Vec3 pos_InGround_HC_s3_l = calcn_l->findStationLocationInGround(*state, locSphere_s3_l);
-    Vec3 contactPointpos_InGround_HC_s3_l = pos_InGround_HC_s3_l - radius_s3*normal;
-    Vec3 contactPointpos_InGround_HC_s3_l_adj = contactPointpos_InGround_HC_s3_l - 0.5*contactPointpos_InGround_HC_s3_l[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s3_l = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s3_l_adj, *calcn_l);
-    /// sphere 4 left
-    Vec3 pos_InGround_HC_s4_l = toes_l->findStationLocationInGround(*state, locSphere_s4_l);
-    Vec3 contactPointpos_InGround_HC_s4_l = pos_InGround_HC_s4_l - radius_s4*normal;
-    Vec3 contactPointpos_InGround_HC_s4_l_adj = contactPointpos_InGround_HC_s4_l - 0.5*contactPointpos_InGround_HC_s4_l[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s4_l = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s4_l_adj, *toes_l);
-    /// sphere 5 left
-    Vec3 pos_InGround_HC_s5_l = calcn_l->findStationLocationInGround(*state, locSphere_s5_l);
-    Vec3 contactPointpos_InGround_HC_s5_l = pos_InGround_HC_s5_l - radius_s5*normal;
-    Vec3 contactPointpos_InGround_HC_s5_l_adj = contactPointpos_InGround_HC_s5_l - 0.5*contactPointpos_InGround_HC_s5_l[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s5_l = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s5_l_adj, *calcn_l);
-    /// sphere 6 left
-    Vec3 pos_InGround_HC_s6_l = toes_l->findStationLocationInGround(*state, locSphere_s6_l);
-    Vec3 contactPointpos_InGround_HC_s6_l = pos_InGround_HC_s6_l - radius_s6*normal;
-    Vec3 contactPointpos_InGround_HC_s6_l_adj = contactPointpos_InGround_HC_s6_l - 0.5*contactPointpos_InGround_HC_s6_l[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s6_l = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s6_l_adj, *toes_l);
-    /// sphere 1 right
-    Vec3 pos_InGround_HC_s1_r = calcn_r->findStationLocationInGround(*state, locSphere_s1_r);
-    Vec3 contactPointpos_InGround_HC_s1_r = pos_InGround_HC_s1_r - radius_s1*normal;
-    Vec3 contactPointpos_InGround_HC_s1_r_adj = contactPointpos_InGround_HC_s1_r - 0.5*contactPointpos_InGround_HC_s1_r[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s1_r = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s1_r_adj, *calcn_r);
-    /// sphere 2 right
-    Vec3 pos_InGround_HC_s2_r = calcn_r->findStationLocationInGround(*state, locSphere_s2_r);
-    Vec3 contactPointpos_InGround_HC_s2_r = pos_InGround_HC_s2_r - radius_s2*normal;
-    Vec3 contactPointpos_InGround_HC_s2_r_adj = contactPointpos_InGround_HC_s2_r - 0.5*contactPointpos_InGround_HC_s2_r[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s2_r = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s2_r_adj, *calcn_r);
-    /// sphere 3 right
-    Vec3 pos_InGround_HC_s3_r = calcn_r->findStationLocationInGround(*state, locSphere_s3_r);
-    Vec3 contactPointpos_InGround_HC_s3_r = pos_InGround_HC_s3_r - radius_s3*normal;
-    Vec3 contactPointpos_InGround_HC_s3_r_adj = contactPointpos_InGround_HC_s3_r - 0.5*contactPointpos_InGround_HC_s3_r[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s3_r = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s3_r_adj, *calcn_r);
-    /// sphere 4 right
-    Vec3 pos_InGround_HC_s4_r = toes_r->findStationLocationInGround(*state, locSphere_s4_r);
-    Vec3 contactPointpos_InGround_HC_s4_r = pos_InGround_HC_s4_r - radius_s4*normal;
-    Vec3 contactPointpos_InGround_HC_s4_r_adj = contactPointpos_InGround_HC_s4_r - 0.5*contactPointpos_InGround_HC_s4_r[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s4_r = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s4_r_adj, *toes_r);
-    /// sphere 5 right
-    Vec3 pos_InGround_HC_s5_r = calcn_r->findStationLocationInGround(*state, locSphere_s5_r);
-    Vec3 contactPointpos_InGround_HC_s5_r = pos_InGround_HC_s5_r - radius_s5*normal;
-    Vec3 contactPointpos_InGround_HC_s5_r_adj = contactPointpos_InGround_HC_s5_r - 0.5*contactPointpos_InGround_HC_s5_r[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s5_r = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s5_r_adj, *calcn_r);
-    /// sphere 6 right
-    Vec3 pos_InGround_HC_s6_r = toes_r->findStationLocationInGround(*state, locSphere_s6_r);
-    Vec3 contactPointpos_InGround_HC_s6_r = pos_InGround_HC_s6_r - radius_s6*normal;
-    Vec3 contactPointpos_InGround_HC_s6_r_adj = contactPointpos_InGround_HC_s6_r - 0.5*contactPointpos_InGround_HC_s6_r[1]*normal;
-    Vec3 contactPointPos_InBody_HC_s6_r = model->getGround().findStationLocationInAnotherFrame(*state, contactPointpos_InGround_HC_s6_r_adj, *toes_r);
-    /// Add GRF contact forces to appliedBodyForces
-    model->getMatterSubsystem().addInStationForce(*state, calcn_l->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s1_l, AppliedPointForce_s1_l, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, calcn_l->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s2_l, AppliedPointForce_s2_l, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, calcn_l->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s3_l, AppliedPointForce_s3_l, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, toes_l->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s4_l, AppliedPointForce_s4_l, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, calcn_l->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s5_l, AppliedPointForce_s5_l, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, toes_l->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s6_l, AppliedPointForce_s6_l, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, calcn_r->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s1_r, AppliedPointForce_s1_r, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, calcn_r->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s2_r, AppliedPointForce_s2_r, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, calcn_r->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s3_r, AppliedPointForce_s3_r, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, toes_r->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s4_r, AppliedPointForce_s4_r, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, calcn_r->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s5_r, AppliedPointForce_s5_r, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, toes_r->getMobilizedBodyIndex(), contactPointPos_InBody_HC_s6_r, AppliedPointForce_s6_r, appliedBodyForces);
-    /// Add knee contact forces to appliedBodyForces
-    model->getMatterSubsystem().addInStationForce(*state, tibial_tray->getMobilizedBodyIndex(), Vec3(0, 0, 0), KneeCont_SumForces_onTibialTray_inG, appliedBodyForces);
-    model->getMatterSubsystem().addInBodyTorque(*state, tibial_tray->getMobilizedBodyIndex(), KneeCont_SumMoments_onTibialTray_inG, appliedBodyForces);
-    model->getMatterSubsystem().addInStationForce(*state, femoral_component->getMobilizedBodyIndex(), Vec3(0, 0, 0), KneeCont_SumForces_onFemoralComp_inG, appliedBodyForces);
-    model->getMatterSubsystem().addInBodyTorque(*state, femoral_component->getMobilizedBodyIndex(), KneeCont_SumMoments_onFemoralComp_inG, appliedBodyForces);
-
-   /* Vector_<SpatialVec> aaa;
-    aaa.resize(nbodies);
-    aaa.setToZero();
-    model->getMatterSubsystem().addInStationForce(*state, femoral_component->getMobilizedBodyIndex(), Vec3(0, 0, 0), KneeCont_SumForces_G_onFemoralComp, aaa);
-    model->getMatterSubsystem().addInBodyTorque(*state, femoral_component->getMobilizedBodyIndex(), KneeCont_SumMoments_G_onFemoralComp, aaa);
-    Vector_<SpatialVec> bbb;
-    bbb.resize(nbodies);
-    bbb.setToZero();
-    Vec3 TibialTrayC_onFemComp = tibial_tray->findStationLocationInAnotherFrame(*state, Vec3(0, 0, 0), *femoral_component);
-    model->getMatterSubsystem().addInStationForce(*state, femoral_component->getMobilizedBodyIndex(), TibialTrayC_onFemComp, KneeCont_SumForces_G_onFemoralComp, bbb);
-    Vec3 mKneeCont_SumMoments_G_onTibialTray = -KneeCont_SumMoments_G_onTibialTray;
-    model->getMatterSubsystem().addInBodyTorque(*state, femoral_component->getMobilizedBodyIndex(), mKneeCont_SumMoments_G_onTibialTray, bbb);
-    
-    std::cout << "aaa=" << aaa << std::endl;
-    std::cout << "bbb=" << bbb << std::endl;*/
+    /// Add contact forces to appliedBodyForces
+   /// Right foot
+    Array<osim_double_adouble> Force_values_1_r = HC_1_r->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_2_r = HC_2_r->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_3_r = HC_3_r->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_4_r = HC_4_r->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_5_r = HC_5_r->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_6_r = HC_6_r->getRecordValues(*state);
+    SpatialVec GRF_1_r;
+    GRF_1_r[0] = Vec3(Force_values_1_r[9], Force_values_1_r[10], Force_values_1_r[11]);
+    GRF_1_r[1] = Vec3(Force_values_1_r[6], Force_values_1_r[7], Force_values_1_r[8]);
+    SpatialVec GRF_2_r;
+    GRF_2_r[0] = Vec3(Force_values_2_r[9], Force_values_2_r[10], Force_values_2_r[11]);
+    GRF_2_r[1] = Vec3(Force_values_2_r[6], Force_values_2_r[7], Force_values_2_r[8]);
+    SpatialVec GRF_3_r;
+    GRF_3_r[0] = Vec3(Force_values_3_r[9], Force_values_3_r[10], Force_values_3_r[11]);
+    GRF_3_r[1] = Vec3(Force_values_3_r[6], Force_values_3_r[7], Force_values_3_r[8]);
+    SpatialVec GRF_4_r;
+    GRF_4_r[0] = Vec3(Force_values_4_r[9], Force_values_4_r[10], Force_values_4_r[11]);
+    GRF_4_r[1] = Vec3(Force_values_4_r[6], Force_values_4_r[7], Force_values_4_r[8]);
+    SpatialVec GRF_5_r;
+    GRF_5_r[0] = Vec3(Force_values_5_r[9], Force_values_5_r[10], Force_values_5_r[11]);
+    GRF_5_r[1] = Vec3(Force_values_5_r[6], Force_values_5_r[7], Force_values_5_r[8]);
+    SpatialVec GRF_6_r;
+    GRF_6_r[0] = Vec3(Force_values_6_r[9], Force_values_6_r[10], Force_values_6_r[11]);
+    GRF_6_r[1] = Vec3(Force_values_6_r[6], Force_values_6_r[7], Force_values_6_r[8]);
+    int ncalcn_r = model->getBodySet().get("calcn_r").getMobilizedBodyIndex();
+    int ntoes_r = model->getBodySet().get("toes_r").getMobilizedBodyIndex();
+    appliedBodyForces[ncalcn_r] = appliedBodyForces[ncalcn_r] + GRF_1_r + GRF_2_r + GRF_3_r + GRF_5_r;
+    appliedBodyForces[ntoes_r] = appliedBodyForces[ntoes_r] + GRF_4_r + GRF_6_r;
+    /// Left foot
+    Array<osim_double_adouble> Force_values_1_l = HC_1_l->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_2_l = HC_2_l->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_3_l = HC_3_l->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_4_l = HC_4_l->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_5_l = HC_5_l->getRecordValues(*state);
+    Array<osim_double_adouble> Force_values_6_l = HC_6_l->getRecordValues(*state);
+    SpatialVec GRF_1_l;
+    GRF_1_l[0] = Vec3(Force_values_1_l[9], Force_values_1_l[10], Force_values_1_l[11]);
+    GRF_1_l[1] = Vec3(Force_values_1_l[6], Force_values_1_l[7], Force_values_1_l[8]);
+    SpatialVec GRF_2_l;
+    GRF_2_l[0] = Vec3(Force_values_2_l[9], Force_values_2_l[10], Force_values_2_l[11]);
+    GRF_2_l[1] = Vec3(Force_values_2_l[6], Force_values_2_l[7], Force_values_2_l[8]);
+    SpatialVec GRF_3_l;
+    GRF_3_l[0] = Vec3(Force_values_3_l[9], Force_values_3_l[10], Force_values_3_l[11]);
+    GRF_3_l[1] = Vec3(Force_values_3_l[6], Force_values_3_l[7], Force_values_3_l[8]);
+    SpatialVec GRF_4_l;
+    GRF_4_l[0] = Vec3(Force_values_4_l[9], Force_values_4_l[10], Force_values_4_l[11]);
+    GRF_4_l[1] = Vec3(Force_values_4_l[6], Force_values_4_l[7], Force_values_4_l[8]);
+    SpatialVec GRF_5_l;
+    GRF_5_l[0] = Vec3(Force_values_5_l[9], Force_values_5_l[10], Force_values_5_l[11]);
+    GRF_5_l[1] = Vec3(Force_values_5_l[6], Force_values_5_l[7], Force_values_5_l[8]);
+    SpatialVec GRF_6_l;
+    GRF_6_l[0] = Vec3(Force_values_6_l[9], Force_values_6_l[10], Force_values_6_l[11]);
+    GRF_6_l[1] = Vec3(Force_values_6_l[6], Force_values_6_l[7], Force_values_6_l[8]);
+    int ncalcn_l = model->getBodySet().get("calcn_l").getMobilizedBodyIndex();
+    int ntoes_l = model->getBodySet().get("toes_l").getMobilizedBodyIndex();
+    appliedBodyForces[ncalcn_l] = appliedBodyForces[ncalcn_l] + GRF_1_l + GRF_2_l + GRF_3_l + GRF_5_l;
+    appliedBodyForces[ntoes_l] = appliedBodyForces[ntoes_l] + GRF_4_l + GRF_6_l;
 
     /// knownUdot
     Vector knownUdot(ndofr);
@@ -1326,36 +1317,20 @@ int F_generic(const T** arg, T** res) {
         appliedMobilityForces, appliedBodyForces, knownUdot,
         residualMobilityForces);
 
-    // Compute contact torques about the ground frame origin
-    /// Get transforms
-    SimTK::Transform TR_GB_calcn_l = calcn_l->getMobilizedBody().getBodyTransform(*state);
-    SimTK::Transform TR_GB_calcn_r = calcn_r->getMobilizedBody().getBodyTransform(*state);
-    SimTK::Transform TR_GB_toes_l = toes_l->getMobilizedBody().getBodyTransform(*state);
-    SimTK::Transform TR_GB_toes_r = toes_r->getMobilizedBody().getBodyTransform(*state);
-    /// Calculate torques
-    Vec3 AppliedPointTorque_s1_l, AppliedPointTorque_s2_l, AppliedPointTorque_s3_l, AppliedPointTorque_s4_l, AppliedPointTorque_s5_l, AppliedPointTorque_s6_l;
-    Vec3 AppliedPointTorque_s1_r, AppliedPointTorque_s2_r, AppliedPointTorque_s3_r, AppliedPointTorque_s4_r, AppliedPointTorque_s5_r, AppliedPointTorque_s6_r;
-    AppliedPointTorque_s1_l = (TR_GB_calcn_l*contactPointPos_InBody_HC_s1_l) % AppliedPointForce_s1_l;
-    AppliedPointTorque_s2_l = (TR_GB_calcn_l*contactPointPos_InBody_HC_s2_l) % AppliedPointForce_s2_l;
-    AppliedPointTorque_s3_l = (TR_GB_calcn_l*contactPointPos_InBody_HC_s3_l) % AppliedPointForce_s3_l;
-    AppliedPointTorque_s4_l = (TR_GB_toes_l*contactPointPos_InBody_HC_s4_l) % AppliedPointForce_s4_l;
-    AppliedPointTorque_s5_l = (TR_GB_calcn_l*contactPointPos_InBody_HC_s5_l) % AppliedPointForce_s5_l;
-    AppliedPointTorque_s6_l = (TR_GB_toes_l*contactPointPos_InBody_HC_s6_l) % AppliedPointForce_s6_l;
-    AppliedPointTorque_s1_r = (TR_GB_calcn_r*contactPointPos_InBody_HC_s1_r) % AppliedPointForce_s1_r;
-    AppliedPointTorque_s2_r = (TR_GB_calcn_r*contactPointPos_InBody_HC_s2_r) % AppliedPointForce_s2_r;
-    AppliedPointTorque_s3_r = (TR_GB_calcn_r*contactPointPos_InBody_HC_s3_r) % AppliedPointForce_s3_r;
-    AppliedPointTorque_s4_r = (TR_GB_toes_r*contactPointPos_InBody_HC_s4_r) % AppliedPointForce_s4_r;
-    AppliedPointTorque_s5_r = (TR_GB_calcn_r*contactPointPos_InBody_HC_s5_r) % AppliedPointForce_s5_r;
-    AppliedPointTorque_s6_r = (TR_GB_toes_r*contactPointPos_InBody_HC_s6_r) % AppliedPointForce_s6_r;
-    /// Contact torques
-    Vec3 MOM_l, MOM_r;
-    MOM_l = AppliedPointTorque_s1_l + AppliedPointTorque_s2_l + AppliedPointTorque_s3_l + AppliedPointTorque_s4_l + AppliedPointTorque_s5_l + AppliedPointTorque_s6_l;
-    MOM_r = AppliedPointTorque_s1_r + AppliedPointTorque_s2_r + AppliedPointTorque_s3_r + AppliedPointTorque_s4_r + AppliedPointTorque_s5_r + AppliedPointTorque_s6_r;
-    /// Contact forces
-    Vec3 GRF_r = AppliedPointForce_s1_r + AppliedPointForce_s2_r + AppliedPointForce_s3_r + AppliedPointForce_s4_r + AppliedPointForce_s5_r + AppliedPointForce_s6_r;
-    Vec3 GRF_l = AppliedPointForce_s1_l + AppliedPointForce_s2_l + AppliedPointForce_s3_l + AppliedPointForce_s4_l + AppliedPointForce_s5_l + AppliedPointForce_s6_l;
+    // Extract several joint origins to set constraints in problem
+    Vec3 calcn_or_l = calcn_l->getPositionInGround(*state);
+    Vec3 calcn_or_r = calcn_r->getPositionInGround(*state);
+    Vec3 femur_or_l = femur_l->getPositionInGround(*state);
+    Vec3 femur_or_r = femur_r->getPositionInGround(*state);
+    Vec3 hand_or_l = hand_l->getPositionInGround(*state);
+    Vec3 hand_or_r = hand_r->getPositionInGround(*state);
+    Vec3 tibia_or_l = tibia_l->getPositionInGround(*state);
+    Vec3 tibia_or_r = tibia_r->getPositionInGround(*state);
+
+    
 
     // Extract results
+    int nc = 3;
     /// Residual forces
     for (int i = 0; i < 12; ++i) {
         res[0][i] = value<T>(residualMobilityForces[i]);
@@ -1383,37 +1358,32 @@ int F_generic(const T** arg, T** res) {
     res[0][31] = value<T>(residualMobilityForces[21]);
     res[0][32] = value<T>(residualMobilityForces[29]);
     res[0][33] = value<T>(residualMobilityForces[30]);
-    std::cout << "residualMobilityForces= " << residualMobilityForces << std::endl;
 
-    /// Contact forces
-    for (int i = 0; i < nc; ++i) {
-        res[0][i + ndof] = value<T>(GRF_r[i]);      /// GRF_r
-    }
-    for (int i = 0; i < nc; ++i) {
-        res[0][i + ndof + nc] = value<T>(GRF_l[i]); /// GRF_l
-    }
-    /// Contact torques
-    for (int i = 0; i < nc; ++i) {
-        res[0][i + ndof + nc + nc] = value<T>(MOM_r[i]);        /// GRM_r
-    }
-    for (int i = 0; i < nc; ++i) {
-        res[0][i + ndof + nc + nc + nc] = value<T>(MOM_l[i]);   /// GRM_l
-    }
-    
     /// Knee contact forces
-    res[0][ndof + nc + nc + nc + nc] = value<T>(SumForces_vert_Lat);
-    res[0][ndof + nc + nc + nc + nc + 1] = value<T>(SumForces_vert_Med);
+    res[0][ndof ] = value<T>(SumForces_vert_Lat);
+    res[0][ndof + 1] = value<T>(SumForces_vert_Med);
+    std::cout << "SumForces_vert_Lat" << SumForces_vert_Lat << std::endl;
+    std::cout << "SumForces_vert_Med" << SumForces_vert_Med << std::endl;
 
-    std::cout << "pvec1= " << pvec1 << std::endl;
-    /// Knee pressures
-    
-    for (int i = 0; i < nfacestib1; ++i) {
-        res[0][i + ndof + nc + nc + nc + nc + 2] = value<T>(pvec1[i]);
-    }
-    std::cout << "nfacestib2=" << nfacestib2 << std::endl;
-    for (int i = 0; i < nfacestib2; ++i) {
-        res[0][i + ndof + nc + nc + nc + nc + 2 + nfacestib1] = value<T>(pvec2[i]);
-    }
+    /// Joint origins
+    res[0][ndof + 2] = value<T>(calcn_or_r[0]);   /// calcn_or_r_x
+    res[0][ndof + 3] = value<T>(calcn_or_r[2]);   /// calcn_or_r_z
+    res[0][ndof + 4] = value<T>(calcn_or_l[0]);   /// calcn_or_l_x
+    res[0][ndof + 5] = value<T>(calcn_or_l[2]);   /// calcn_or_l_x
+    res[0][ndof + 6] = value<T>(femur_or_r[0]);   /// femur_or_r_x
+    res[0][ndof + 7] = value<T>(femur_or_r[2]);   /// femur_or_r_z
+    res[0][ndof + 8] = value<T>(femur_or_l[0]);   /// femur_or_l_x
+    res[0][ndof + 9] = value<T>(femur_or_l[2]);   /// femur_or_l_z
+    res[0][ndof + 10] = value<T>(hand_or_r[0]);    /// hand_or_r_x
+    res[0][ndof + 11] = value<T>(hand_or_r[2]);    /// hand_or_r_z
+    res[0][ndof + 12] = value<T>(hand_or_l[0]);   /// hand_or_l_x
+    res[0][ndof + 13] = value<T>(hand_or_l[2]);   /// hand_or_l_z
+    res[0][ndof + 14] = value<T>(tibia_or_r[0]);  /// tibia_or_r_x
+    res[0][ndof + 15] = value<T>(tibia_or_r[2]);  /// tibia_or_r_z
+    res[0][ndof + 16] = value<T>(tibia_or_l[0]);  /// tibia_or_l_x
+    res[0][ndof + 17] = value<T>(tibia_or_l[2]);  /// tibia_or_l_z
+
+
     return 0;
 }
 
@@ -1428,24 +1398,18 @@ int main() {
 
     Recorder x[NX];
     Recorder u[NU];
-    Recorder p[NP];
     Recorder tau[NR];
 
     for (int i = 0; i < NX; ++i) x[i] <<= 0;
     for (int i = 0; i < NU; ++i) u[i] <<= 0;
-    for (int i = 0; i < NP; ++i) p[i] <<= 0;
 
-    const Recorder* Recorder_arg[n_in] = { x,u,p };
+    const Recorder* Recorder_arg[n_in] = { x,u};
     Recorder* Recorder_res[n_out] = { tau };
 
     F_generic<Recorder>(Recorder_arg, Recorder_res);
 
     double res[NR];
-    for (int i = 0; i < NR; ++i) {
-        std::cout << "i=" << i << std::endl;
-        std::cout << "res[i]=" << res[i] << std::endl;
-        Recorder_res[0][i] >>= res[i];
-    }
+    for (int i = 0; i < NR; ++i) Recorder_res[0][i] >>= res[i];
 
     Recorder::stop_recording();
 

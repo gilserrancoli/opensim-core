@@ -70,6 +70,8 @@ if(BUILD_TESTING)
 	add_subdirectory(StewartPlatform)
 	add_subdirectory(oneLeg_withContact)
 	add_subdirectory(RightRatHindlimb_Zhong_InertiaVar)
+	add_subdirectory(PredSim_v2_kneeCont)
+	add_subdirectory(PredSim_v2_kneeCont_forDebug)
 endif()
 
 

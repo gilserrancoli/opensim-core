@@ -60,8 +60,8 @@ constexpr int NR = ndof+6+6+2;    // # residual torques + # GRFs + # GRMs
 
 //constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
 constexpr int nfacesTib = 100; //before 49
-constexpr int nfacesFem = 188;
-constexpr const char radForPairs[] = "1"; // 1 is 1 cm, 05 is 0.5 cm
+constexpr int nfacesFem = 171;
+constexpr const char radForPairs[] = "05"; // 1 is 1 cm, 05 is 0.5 cm
 constexpr char* multiplier_method = "cylinders"; // multiplier method: "cylinders" or "spheres"
 
 std::string getHostname() {
