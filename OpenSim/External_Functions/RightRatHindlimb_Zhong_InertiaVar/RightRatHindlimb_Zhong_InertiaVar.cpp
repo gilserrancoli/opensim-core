@@ -180,7 +180,7 @@ int F_generic(const T** arg, T** res) {
 	st_sacroiliac[0].setAxis(Vec3(0, 0, 1));
 	st_sacroiliac[1].setAxis(Vec3(1, 0, 0));
 	st_sacroiliac[2].setAxis(Vec3(0, 1, 0));
-	sacroiliac = new CustomJoint("sacroiliac", *spine, Vec3(0.00395427, -0.00237256, 0.00790855),
+	sacroiliac = new CustomJoint("sacroiliac", *spine, Vec3(0.0042892, -0.00257352, 0.00857841),
 		Vec3(0), *pelvis, Vec3(0,0,0), Vec3(0,0,0),st_sacroiliac);
 
 	SpatialTransform st_hip;
@@ -202,8 +202,8 @@ int F_generic(const T** arg, T** res) {
 	st_knee[0].setFunction(new LinearFunction());
 	st_knee[1].setAxis(Vec3(1, 0, 0));
 	st_knee[2].setAxis(Vec3(0, 1, 0));
-	knee = new CustomJoint("knee", *femur, Vec3(0, -0.0376385, 0),
-		Vec3(0), *tibia, Vec3(0, 0.0329381,0), Vec3(0, 0, 0), st_knee);
+	knee = new CustomJoint("knee", *femur, Vec3(0, -0.0468796, 0),
+		Vec3(0), *tibia, Vec3(0, 0.0581297, 0), Vec3(0, 0, 0), st_knee);
 
 	SpatialTransform st_ankle;
 	st_ankle[0].setAxis(Vec3(0, 0, 1));
@@ -286,13 +286,15 @@ int F_generic(const T** arg, T** res) {
 	// add transducer force
 	Vec3 TFpoint_inFoot = model->getGround().findStationLocationInAnotherFrame(*state, TFpoint_inG, *foot);
 	model->getMatterSubsystem().addInStationForce(*state,
-		foot->getMobilizedBodyIndex(),
+		model->getBodySet().get("foot").getMobilizedBodyIndex(),
 		TFpoint_inFoot, TFforce_inG, appliedBodyForces);
 	// add transducer moment
 	model->getMatterSubsystem().addInBodyTorque(*state,
-		foot->getMobilizedBodyIndex(),
+		model->getBodySet().get("foot").getMobilizedBodyIndex(),
 		TFmoment_inG, appliedBodyForces);
 
+	std::cout << model->getBodySet().get("foot").getMobilizedBodyIndex() << std::endl;
+	std::cout << foot->getMobilizedBodyIndex() << std::endl;
 
     /// knownUdot
 	Vector knownUdot(ndof);
