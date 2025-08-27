@@ -49,7 +49,7 @@ constexpr int NX = ndof;      // # states
 //constexpr int NU = ndof;        // # controls
 
 //constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
-constexpr int nfacesTib = 100; //before 49
+constexpr int nfacesTib = 49; //before 49
 constexpr int nfacesFem = 188;
 constexpr const char radForPairs[] = "05"; // 1 is 1 cm, 05 is 0.5 cm
 constexpr char* multiplier_method = "cylinders"; // multiplier method: "cylinders" or "spheres"
@@ -414,12 +414,30 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
 }
 
 Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
-    Real k = 5e5;
+    //Real k = 5e5;
     Real pen = d;
 
     Real p_init = ((1 - poisson)*E / ((1 + poisson)*(1 - 2 * poisson)))*pen / h;
 
-    Real p = p_init*(1 + tanh(k*pen)) / 2;
+    // Real p = p_init*(1 + tanh(k*pen)) / 2; //smoothing using a tanh curve
+    Real fpen_negative = 10000 * pen;
+    Real k = 8e7;
+    Real stiffness = ((1 - poisson) * E / ((1 + poisson) * (1 - 2 * poisson))) / h;;
+    Real trans = -1e-7; // transition point from constant slope to start to change the slope 
+    Real midpoint = trans / 2;
+    Real alfa = (1000 + stiffness) / 2;
+    Real beta = ((stiffness - 1000) / 2) / tanh(-k * midpoint);
+
+    Real p;
+    if (pen <= trans) {
+        p = 1000 * pen;
+    }
+    else if ((pen > trans)& (pen < 0.0)) {
+        p = pen * (alfa + beta) - (beta * log(tanh(k * pen + 4) + 1)) / k + (beta * log(tanh(4) + 1)) / k;
+    }
+    else if (pen >= 0.0) {
+        p = p_init;
+    }
 
     std::cout << "pen" << pen << std::endl;
     std::cout << "p" << p << std::endl;

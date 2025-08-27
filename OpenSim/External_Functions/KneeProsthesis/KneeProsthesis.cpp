@@ -50,9 +50,9 @@ constexpr int NX = ndof;      // # states
 constexpr int NR = 2;    // # residual torques + # GRFs + # GRMs
 
 //constexpr int numpairs = 932; //499 is right cycle with 5 mm radius sphere threshold, 932 is with 10 mm threshold
-constexpr int nfacesTib = 100; //before 49
+constexpr int nfacesTib = 49; //before 49
 constexpr int nfacesFem = 188;
-constexpr const char radForPairs[] = "1"; // 1 is 1 cm, 05 is 0.5 cm
+constexpr const char radForPairs[] = "05"; // 1 is 1 cm, 05 is 0.5 cm
 constexpr char* multiplier_method = "cylinders"; // multiplier method: "cylinders" or "spheres"
 
 // Helper function value
@@ -413,12 +413,33 @@ void CalculateMaximumPenetration(Vector_<Vec3> d_v, Vector_<Vec3> nt_v, Real &ma
 }
 
 Real CalculatePressure(Real poisson, Real E, Real d, Real h) {
-    Real k = 5e5;
+    /*Real k = 5e5;*/
     Real pen = d;
 
     Real p_init = ((1 - poisson)*E / ((1 + poisson)*(1 - 2 * poisson)))*pen / h;
 
-    Real p = p_init*(1 + tanh(k*pen)) / 2;
+    // Real p = p_init*(1 + tanh(k*pen)) / 2; //smoothing using a tanh curve
+    Real slope_atnegpen = 1e4; // slope of the pressure when penetration is lower than transition penetration (trans)
+    Real fpen_negative = slope_atnegpen * pen;
+    Real k = 8e7;
+    Real stiffness = ((1 - poisson) * E / ((1 + poisson) * (1 - 2 * poisson))) / h;;
+    Real trans = -1e-7; // transition point from constant slope to start to change the slope 
+    Real midpoint = trans / 2;
+    Real alfa = (slope_atnegpen + stiffness) / 2;
+    Real beta = ((stiffness - slope_atnegpen) / 2) / tanh(- k * midpoint);
+    Real ptrans= trans * (alfa + beta) - (beta * log(tanh(k * trans + 4) + 1)) / k + (beta * log(tanh(4) + 1)) / k;
+
+    Real p;
+    if (pen <= trans) {
+        p = slope_atnegpen*pen+ptrans-slope_atnegpen*trans;
+    }
+    else if ((pen > trans)& (pen < 0.0)) {
+        p = pen * (alfa + beta) - (beta * log(tanh(k * pen + 4) + 1)) / k + (beta * log(tanh(4) + 1)) / k;
+    }
+    else if (pen>=0.0) {
+        p = p_init;
+    }
+
 
     std::cout << "pen" << pen << std::endl;
     std::cout << "p" << p << std::endl;

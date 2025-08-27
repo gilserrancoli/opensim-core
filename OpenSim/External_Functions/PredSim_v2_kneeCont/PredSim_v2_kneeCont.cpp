@@ -1369,7 +1369,7 @@ int F_generic(const T** arg, T** res) {
     res[0][ndof + 2] = value<T>(calcn_or_r[0]);   /// calcn_or_r_x
     res[0][ndof + 3] = value<T>(calcn_or_r[2]);   /// calcn_or_r_z
     res[0][ndof + 4] = value<T>(calcn_or_l[0]);   /// calcn_or_l_x
-    res[0][ndof + 5] = value<T>(calcn_or_l[2]);   /// calcn_or_l_x
+    res[0][ndof + 5] = value<T>(calcn_or_l[2]);   /// calcn_or_l_z
     res[0][ndof + 6] = value<T>(femur_or_r[0]);   /// femur_or_r_x
     res[0][ndof + 7] = value<T>(femur_or_r[2]);   /// femur_or_r_z
     res[0][ndof + 8] = value<T>(femur_or_l[0]);   /// femur_or_l_x

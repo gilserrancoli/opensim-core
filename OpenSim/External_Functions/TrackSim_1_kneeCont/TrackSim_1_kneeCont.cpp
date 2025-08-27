@@ -280,12 +280,12 @@ int F_generic(const T** arg, T** res) {
     ground_pelvis = new CustomJoint("ground_pelvis", model->getGround(), Vec3(0), Vec3(0), *pelvis, Vec3(0), Vec3(0), st_ground_pelvis);
     hip_l = new CustomJoint("hip_l", *pelvis, Vec3(-0.041283, -0.098, -0.084432), Vec3(0), *femur_l, Vec3(0), Vec3(0), st_hip_l);
     hip_r = new CustomJoint("hip_r", *pelvis, Vec3(-0.041283, -0.098, 0.084432), Vec3(0), *femur_r, Vec3(0), Vec3(0), st_hip_r);
-    knee_l = new CustomJoint("knee_l", *tibia_l, Vec3(0), Vec3(0), *femur_l, Vec3(-0.00451221232146798, -0.396907245921447, 0), Vec3(0), st_knee_l);
+    knee_l = new CustomJoint("knee_l", *tibia_l, Vec3(0), Vec3(0), *femur_l, Vec3(0, -0.39335, 0), Vec3(0), st_knee_l);
     femoral_component_weld = new WeldJoint("femoral_component_weld", *femur_r, Vec3(0, -0.39335, 0), Vec3(3.083, 0, -3.083), *femoral_component, Vec3(0), Vec3(0));
     knee_r = new CustomJoint("knee_r", *tibial_tray, Vec3(0, 0, 0), Vec3(0), *femoral_component, Vec3(0), Vec3(0), st_knee_r);
-    tibial_tray_weld = new WeldJoint("tibial_tray_weld", *tibial_tray, Vec3(0, 0.044254, 0), Vec3(0, 3.1416, 0), *tibia_r, Vec3(0, 0, 0), Vec3(0, 0, 0));
+    tibial_tray_weld = new WeldJoint("tibial_tray_weld", *tibial_tray, Vec3(0, 0.044254, 0), Vec3(-3.14159, -7.34641e-06, -3.14159), *tibia_r, Vec3(0, 0, 0), Vec3(0, 0, 0));
     ankle_l = new CustomJoint("ankle_l", *tibia_l, Vec3(0, -0.44751, 0), Vec3(-0.041214, 0.0031538, -0.050218), *talus_l, Vec3(0), Vec3(0), st_ankle_l);
-    ankle_r = new CustomJoint("ankle_r", *tibia_r, Vec3(0, -0.44751, 0), Vec3(0.041214, 0.0031538, -0.050218), *talus_r, Vec3(0), Vec3(0), st_ankle_r);
+    ankle_r = new CustomJoint("ankle_r", *tibia_r, Vec3(0, -0.44751, 0), Vec3(-0.041214, 0.0031538, -0.050218), *talus_r, Vec3(0), Vec3(0), st_ankle_r);
     subtalar_l = new CustomJoint("subtalar_l", *talus_l, Vec3(-0.043062, -0.04869, -0.018), Vec3(0.11332, -0.12598, 0.019146), *calcn_l, Vec3(0), Vec3(0), st_subtalar_l);
     subtalar_r = new CustomJoint("subtalar_r", *talus_r, Vec3(-0.043062, -0.04869, 0.018), Vec3(-0.11332, 0.12598, 0.019146), *calcn_r, Vec3(0), Vec3(0), st_subtalar_r);
     mtp_l = new WeldJoint("mtp_l", *calcn_l, Vec3(0.17664, 0.0043199, -0.0021898), Vec3(-0.20251, -0.096222, 0.23426), *toes_l, Vec3(0), Vec3(0));

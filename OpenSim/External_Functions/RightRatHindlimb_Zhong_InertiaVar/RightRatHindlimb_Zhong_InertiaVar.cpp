@@ -139,13 +139,13 @@ int F_generic(const T** arg, T** res) {
 	model = new OpenSim::Model();
     /// Body specifications
 	spine = new OpenSim::Body("spine", 0.012546, Vec3(0),
-            Inertia(3.13876e-07, 3.13876e-07, 3.13876e-07, 0, 0, 0));
+            Inertia(3.693e-07, 3.693e-07, 3.693e-07, 0, 0, 0));
 	pelvis = new OpenSim::Body("pelvis", 0.002091, Vec3(0),
-			Inertia(2.61564e-07, 2.28868e-07, 2.28868e-07, 0, 0, 0));
+			Inertia(3.0775e-07, 2.69281e-07, 2.69281e-07, 0, 0, 0));
 	femur = new OpenSim::Body("femur", mfem, Vec3(0, yCoMfem,0),
-            Inertia(Izfem, 2.7e-08, Izfem, 0, 0, 0));
+            Inertia(Izfem, 3.92738e-08, Izfem, 0, 0, 0));
 	tibia = new OpenSim::Body("tibia", mtib, Vec3(0, yCoMtib,0),
-            Inertia(Iztib, 1.08e-08, Iztib, 0, 0, 0));
+            Inertia(Iztib, 2.61375e-08, Iztib, 0, 0, 0));
 	foot = new OpenSim::Body("foot", mfoot, Vec3(xCoMfoot, yCoMfoot, 0),
 		Inertia(1.095e-08, 2.85e-08, Izfoot, -1.52e-08, 0, 0));
 	
@@ -202,8 +202,8 @@ int F_generic(const T** arg, T** res) {
 	st_knee[0].setFunction(new LinearFunction());
 	st_knee[1].setAxis(Vec3(1, 0, 0));
 	st_knee[2].setAxis(Vec3(0, 1, 0));
-	knee = new CustomJoint("knee", *femur, Vec3(0, -0.0468796, 0),
-		Vec3(0), *tibia, Vec3(0, 0.0581297, 0), Vec3(0, 0, 0), st_knee);
+	knee = new CustomJoint("knee", *femur, Vec3(0, -0.038, 0),
+		Vec3(0), *tibia, Vec3(0, 0.042, 0), Vec3(0, 0, 0), st_knee);
 
 	SpatialTransform st_ankle;
 	st_ankle[0].setAxis(Vec3(0, 0, 1));
