@@ -74,6 +74,8 @@ if(BUILD_TESTING)
 	add_subdirectory(PredSim_v2_kneeCont)
 	add_subdirectory(PredSim_v2_kneeCont_forDebug)
 	add_subdirectory(TrackSim_2_kneeCont_KCFasinput)
+	add_subdirectory(PredSim_v2_kneeCont_KCFasinput)
+	add_subdirectory(PredSim_v2_kneeCont_KCFasinput_forDebug)
 endif()
 
 
