@@ -105,6 +105,51 @@ createSystemYIndexMap(const Model& model) {
     return sysYIndices;
 }
 
+// OpenSim and Simbody use different indices for the states/controls when the
+// kinematic chain has joints up and down the origin (e.g., lumbar joint/arms
+// and legs with pelvis as origin).
+// The two following functions allow getting the indices from one reference
+// system to the other. These functions are inspired from
+// createSystemYIndexMap() in Moco.
+// getIndicesOSInSimbody() returns the indices of the OpenSim Qs in the Simbody
+// reference system. Note that we only care about the order here so we divide
+// by 2 because the states include both Qs and Qdots.
+SimTK::Array_<int> getIndicesOSInSimbody(const Model& model) {
+    auto s = model.getWorkingState();
+    const auto svNames = model.getStateVariableNames();
+    SimTK::Array_<int> idxOSInSimbody(s.getNQ());
+    s.updQ() = 0;
+    for (int iy = 0; iy < s.getNQ(); ++iy) {
+        s.updQ()[iy] = SimTK::NaN;
+        const auto svValues = model.getStateVariableValues(s);
+        for (int isv = 0; isv < svNames.size(); ++isv) {
+            if (SimTK::isNaN(svValues[isv])) {
+                s.updQ()[iy] = 0;
+                idxOSInSimbody[iy] = isv / 2;
+                break;
+            }
+        }
+    }
+    return idxOSInSimbody;
+}
+
+// getIndicesSimbodyInOS() returns the indices of the Simbody Qs in the OpenSim
+// reference system.
+SimTK::Array_<int> getIndicesSimbodyInOS(const Model& model) {
+    auto idxOSInSimbody = getIndicesOSInSimbody(model);
+    auto s = model.getWorkingState();
+    SimTK::Array_<int> idxSimbodyInOS(s.getNQ());
+    for (int iy = 0; iy < s.getNQ(); ++iy) {
+        for (int iyy = 0; iyy < s.getNQ(); ++iyy) {
+            if (idxOSInSimbody[iyy] == iy) {
+                idxSimbodyInOS[iy] = iyy;
+                break;
+            }
+        }
+    }
+    return idxSimbodyInOS;
+}
+
 //std::vector<Vec4> ReadDataDoublex4columns(std::string filename) {
 //
 //
@@ -1319,6 +1364,13 @@ int F_generic(const T** arg, T** res) {
     appliedBodyForces[ncalcn_l] = appliedBodyForces[ncalcn_l] + GRF_1_l + GRF_2_l + GRF_3_l + GRF_5_l;
     appliedBodyForces[ntoes_l] = appliedBodyForces[ntoes_l] + GRF_4_l + GRF_6_l;
 
+    /// Add knee contact forces to appliedBodyForces
+    model->getMatterSubsystem().addInStationForce(*state, tibial_tray->getMobilizedBodyIndex(), Vec3(0, 0, 0), KneeCont_SumForces_onTibialTray_inG, appliedBodyForces);
+    model->getMatterSubsystem().addInBodyTorque(*state, tibial_tray->getMobilizedBodyIndex(), KneeCont_SumMoments_onTibialTray_inG, appliedBodyForces);
+    model->getMatterSubsystem().addInStationForce(*state, femoral_component->getMobilizedBodyIndex(), Vec3(0, 0, 0), KneeCont_SumForces_onFemoralComp_inG, appliedBodyForces);
+    model->getMatterSubsystem().addInBodyTorque(*state, femoral_component->getMobilizedBodyIndex(), KneeCont_SumMoments_onFemoralComp_inG, appliedBodyForces);
+
+
     /// knownUdot
     Vector knownUdot(ndofr);
     knownUdot.setToZero();
@@ -1348,6 +1400,10 @@ int F_generic(const T** arg, T** res) {
     // Extract results
     int nc = 3;
     /// Residual forces
+    /// OpenSim and Simbody have different state orders so we need to adjust
+    auto indicesSimbodyInOS = getIndicesSimbodyInOS(*model);
+    std::cout << "indicesSimbodyInOS=" << indicesSimbodyInOS << std::endl;
+
     for (int i = 0; i < 12; ++i) {
         res[0][i] = value<T>(residualMobilityForces[i]);
     }

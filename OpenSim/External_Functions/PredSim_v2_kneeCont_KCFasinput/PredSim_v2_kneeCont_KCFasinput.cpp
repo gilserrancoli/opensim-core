@@ -1319,6 +1319,12 @@ int F_generic(const T** arg, T** res) {
     appliedBodyForces[ncalcn_l] = appliedBodyForces[ncalcn_l] + GRF_1_l + GRF_2_l + GRF_3_l + GRF_5_l;
     appliedBodyForces[ntoes_l] = appliedBodyForces[ntoes_l] + GRF_4_l + GRF_6_l;
 
+    /// Add knee contact forces to appliedBodyForces
+    model->getMatterSubsystem().addInStationForce(*state, tibial_tray->getMobilizedBodyIndex(), Vec3(0, 0, 0), KneeCont_SumForces_onTibialTray_inG, appliedBodyForces);
+    model->getMatterSubsystem().addInBodyTorque(*state, tibial_tray->getMobilizedBodyIndex(), KneeCont_SumMoments_onTibialTray_inG, appliedBodyForces);
+    model->getMatterSubsystem().addInStationForce(*state, femoral_component->getMobilizedBodyIndex(), Vec3(0, 0, 0), KneeCont_SumForces_onFemoralComp_inG, appliedBodyForces);
+    model->getMatterSubsystem().addInBodyTorque(*state, femoral_component->getMobilizedBodyIndex(), KneeCont_SumMoments_onFemoralComp_inG, appliedBodyForces);
+
     /// knownUdot
     Vector knownUdot(ndofr);
     knownUdot.setToZero();
