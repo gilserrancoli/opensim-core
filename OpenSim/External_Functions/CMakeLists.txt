@@ -76,6 +76,10 @@ if(BUILD_TESTING)
 	add_subdirectory(TrackSim_2_kneeCont_KCFasinput)
 	add_subdirectory(PredSim_v2_kneeCont_KCFasinput)
 	add_subdirectory(PredSim_v2_kneeCont_KCFasinput_forDebug)
+	add_subdirectory(gait2legs1arm_21dof)
+	add_subdirectory(robotarm5dof_3_1_1)
+	add_subdirectory(robotarm7dof_3_3_1)
+	add_subdirectory(Rugby_generic_1)
 endif()
 
 

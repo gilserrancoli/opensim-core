@@ -41,6 +41,7 @@
 #include "Model/ElasticFoundationForce.h"
 #include "Model/HuntCrossleyForce.h"
 #include "Model/HuntCrossleyForce_smooth.h"
+#include "Model/SmoothSphereHalfSpaceForce.h"
 #include "Model/Ligament.h"
 #include "Model/JointSet.h"
 #include "Model/Marker.h"
